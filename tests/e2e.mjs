@@ -1,0 +1,15 @@
+import { chromium } from 'playwright-core';
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+const errors=[];const traffic=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.url().includes('/api/'))traffic.push(`${r.request().method()} ${r.url()} ${r.status()}`)});
+await page.goto('http://127.0.0.1:8080',{waitUntil:'networkidle'});
+await page.getByRole('button',{name:/Levantar un ticket/i}).first().click();
+await page.locator('[name=requester]').fill('Prueba móvil E2E');await page.locator('[name=area]').selectOption('Sistemas');await page.locator('[name=subject]').fill('Validación móvil completa');await page.locator('textarea[name=description]').fill('Ticket temporal generado por la prueba automatizada');
+await page.locator('#ticketForm button[type=submit]').click();await page.locator('#receiptModal:not([hidden])').waitFor();const code=await page.locator('#receiptCode').textContent();
+const pdf=await page.request.get(`http://127.0.0.1:8080/api/tickets/${code}/receipt.pdf`);if(!pdf.ok()||pdf.headers()['content-type']!=='application/pdf')throw new Error('PDF no disponible');
+await page.locator('#copyCode').click();await page.waitForTimeout(200);if(!(await page.locator('#toast').innerText()).includes(code))throw new Error('Copia de folio sin confirmación');const imageDownload=page.waitForEvent('download');await page.locator('#downloadImage').click();await imageDownload;
+await page.getByRole('button',{name:/Cerrar comprobante/i}).click();await page.getByRole('button',{name:/Acceso de TI/i}).first().click();await page.locator('[name=username]').fill(process.env.ADMIN_USER);await page.locator('[name=password]').fill(process.env.ADMIN_PASSWORD);await page.locator('#loginForm button[type=submit]').click();await page.locator('.ticket-row').first().click();
+await page.locator('#detailForm [name=status]').selectOption('En progreso');await page.locator('#detailForm [name=assignee]').fill('Técnico E2E');await page.locator('#detailForm .primary-button').click();await page.getByText('Cambios guardados').waitFor();
+if(await page.locator('#detailForm [name=status]').inputValue()!=='En progreso')throw new Error('Estado no persistió');
+await page.once('dialog',d=>d.accept());await page.locator('#deleteTicket').click();await page.waitForTimeout(400);
+if(errors.length)throw new Error(`Errores JS: ${errors.join('; ')}`);console.log(JSON.stringify({mobileReceipt:true,pdf:true,adminStatus:true,code}));await browser.close();

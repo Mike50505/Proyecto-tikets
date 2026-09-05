@@ -1,0 +1,9 @@
+.git
+.gitignore
+.agents
+.codex
+node_modules
+npm-debug.log
+compose*.yaml
+Dockerfile*
+README.md

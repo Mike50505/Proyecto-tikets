@@ -1,0 +1,50 @@
+services:
+  mesa-ti:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mesa-ti
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+  api:
+    build:
+      context: ./api
+    container_name: mesa-ti-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://tickets:${POSTGRES_PASSWORD}@postgres:5432/tickets
+      LEGACY_DB: /legacy/tickets.db
+      ADMIN_USER: ${ADMIN_USER:-administrator}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    volumes:
+      - tickets_data:/legacy:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  postgres:
+    image: postgres:17-alpine
+    container_name: mesa-ti-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tickets
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tickets -d tickets"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  tickets_data:
+  postgres_data:
