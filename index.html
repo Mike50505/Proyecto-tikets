@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Mesa de servicio de TI">
   <title>Mesa TI | Sistema de tickets</title>
+  <link rel="icon" href="logo-mesa.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -13,11 +14,12 @@
   <link rel="stylesheet" href="receipt.css?v=3">
   <link rel="stylesheet" href="login.css?v=4">
   <link rel="stylesheet" href="admin.css?v=5">
+  <link rel="stylesheet" href="logo.css?v=1">
 </head>
 <body>
   <section class="public-portal" id="publicPortal">
     <header class="public-header">
-      <a class="brand" href="#inicio" data-action="public-home"><span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5v-2Z"/><path d="M9 8v8M15 8v8"/></svg></span><span>Mesa <strong>TI</strong></span></a>
+      <a class="brand" href="#inicio" data-action="public-home"><img class="brand-logo" src="logo-mesa.svg" alt="MESA"><span>Mesa <strong>TI</strong></span></a>
       <nav class="public-nav"><button data-action="public-home">Inicio</button><button data-action="track">Consultar ticket</button><button data-action="solutions">Soluciones</button></nav>
       <button class="admin-link" data-action="admin-view">Acceso de TI →</button>
     </header>
@@ -32,7 +34,7 @@
   <div class="app-shell" id="adminShell" hidden>
     <aside class="sidebar" id="sidebar">
       <a class="brand" href="#" aria-label="Mesa TI, inicio">
-        <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5v-2Z"/><path d="M9 8v8M15 8v8"/></svg></span>
+        <img class="brand-logo" src="logo-mesa.svg" alt="MESA">
         <span>Mesa <strong>TI</strong></span>
       </a>
 

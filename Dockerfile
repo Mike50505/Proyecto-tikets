@@ -8,6 +8,8 @@ COPY receipt.css /usr/share/nginx/html/receipt.css
 COPY login.css /usr/share/nginx/html/login.css
 COPY admin.css /usr/share/nginx/html/admin.css
 COPY app.js /usr/share/nginx/html/app.js
+COPY logo-mesa.svg /usr/share/nginx/html/logo-mesa.svg
+COPY logo.css /usr/share/nginx/html/logo.css
 
 EXPOSE 80
 
