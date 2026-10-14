@@ -20,6 +20,7 @@ services:
       LEGACY_DB: /legacy/tickets.db
       ADMIN_USER: ${ADMIN_USER:-administrator}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DEVICE_ENCRYPTION_KEY: ${DEVICE_ENCRYPTION_KEY:-}
     volumes:
       - tickets_data:/legacy:ro
     depends_on:

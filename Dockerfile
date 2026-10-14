@@ -8,6 +8,10 @@ COPY receipt.css /usr/share/nginx/html/receipt.css
 COPY login.css /usr/share/nginx/html/login.css
 COPY admin.css /usr/share/nginx/html/admin.css
 COPY app.js /usr/share/nginx/html/app.js
+COPY inventory.js inventory.css Bodegas_Ramos_V06.svg /usr/share/nginx/html/
+COPY reports.js reports.css /usr/share/nginx/html/
+COPY mesa /usr/share/nginx/html/mesa
+COPY mesa-adapter.css /usr/share/nginx/html/mesa-adapter.css
 
 EXPOSE 80
 

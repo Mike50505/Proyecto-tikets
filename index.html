@@ -5,21 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Mesa de servicio de TI">
   <title>Mesa TI | Sistema de tickets</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="mesa/mesa-appearance-bootstrap.js"></script>
   <link rel="stylesheet" href="styles.css?v=3">
   <link rel="stylesheet" href="public.css?v=3">
   <link rel="stylesheet" href="receipt.css?v=3">
   <link rel="stylesheet" href="login.css?v=4">
   <link rel="stylesheet" href="admin.css?v=5">
-</head>
-<body>
+  <link rel="stylesheet" href="inventory.css?v=1">
+  <link rel="stylesheet" href="reports.css?v=1">
+<link rel="stylesheet" href="mesa/mesa-suite.css?v=20261009"><link rel="stylesheet" href="mesa-adapter.css?v=20261009"><link rel="icon" href="mesa/logo-mesa.svg" type="image/svg+xml"><link rel="stylesheet" href="mesa/mesa-effects.css?v=20261009-effects"><link rel="stylesheet" href="mesa/mesa-appearance.css?v=20261012"></head>
+<body class="mesa-suite mesa-tickets"><canvas class="particle-background" data-particle-background aria-hidden="true"></canvas>
   <section class="public-portal" id="publicPortal">
-    <header class="public-header">
-      <a class="brand" href="#inicio" data-action="public-home"><span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5v-2Z"/><path d="M9 8v8M15 8v8"/></svg></span><span>Mesa <strong>TI</strong></span></a>
-      <nav class="public-nav"><button data-action="public-home">Inicio</button><button data-action="track">Consultar ticket</button><button data-action="solutions">Soluciones</button></nav>
-      <button class="admin-link" data-action="admin-view">Acceso de TI →</button>
+    <header class="public-header mesa-header">
+      <a class="brand mesa-brand" href="#inicio" data-action="public-home"><img src="mesa/logo-mesa.svg" alt="MESA"><span><b>MESA</b><small>Tickets · Soporte interno</small></span></a>
+      <button class="mesa-menu" type="button" data-mesa-menu aria-controls="public-nav" aria-expanded="false" aria-label="Abrir menú">☰</button><nav class="public-nav mesa-nav" id="public-nav" aria-label="Soporte interno"><button data-action="public-home">Inicio</button><button data-action="track">Consultar ticket</button><button data-action="solutions">Soluciones</button></nav>
+      <div class="mesa-account"><span data-mesa-palette></span><button class="admin-link" data-action="admin-view">Acceso de TI →</button></div>
     </header>
     <main>
       <section class="public-hero"><div class="hero-copy"><span class="hero-kicker"><i></i> SOPORTE INTERNO · PLANTA MÉXICO</span><h1>¿Cómo podemos<br><em>ayudarte hoy?</em></h1><p>Reporta un problema o solicita apoyo al equipo de Sistemas. No necesitas una cuenta para comenzar.</p><div class="hero-actions"><button class="primary-button large" data-action="new-ticket">＋ Levantar un ticket</button><button class="secondary-button large" data-action="track">Consultar seguimiento</button></div><small class="availability"><span></span> Equipo disponible · Extensión 2401</small></div><div class="hero-visual"><div class="visual-glow"></div><div class="support-card"><div class="support-top"><span class="support-logo">TI</span><span class="live-pill"><i></i> EN LÍNEA</span></div><h3>Mesa de servicio</h3><p>Tiempo promedio de primera respuesta</p><strong>18 <small>min</small></strong><div class="support-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="support-bottom"><span>Disponibilidad hoy</span><b>98%</b></div></div><div class="floating-note note-one">✓ <span><b>28 solicitudes</b><small>resueltas este mes</small></span></div><div class="floating-note note-two">◷ <span><b>Seguimiento claro</b><small>con número de ticket</small></span></div></div></section>
@@ -30,20 +30,18 @@
     </main><footer class="public-footer"><span>Mesa TI · Planta México</span><span>Soporte interno · Ext. 2401</span><button data-action="admin-view">Administración de TI</button></footer>
   </section>
   <div class="app-shell" id="adminShell" hidden>
-    <aside class="sidebar" id="sidebar">
-      <a class="brand" href="#" aria-label="Mesa TI, inicio">
-        <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5v-2Z"/><path d="M9 8v8M15 8v8"/></svg></span>
-        <span>Mesa <strong>TI</strong></span>
+    <header class="sidebar mesa-header" id="sidebar">
+      <a class="brand mesa-brand" href="#" aria-label="Mesa TI, inicio">
+        <img src="mesa/logo-mesa.svg" alt="MESA"><span><b>MESA</b><small>Tickets · Soporte interno</small></span>
       </a>
 
-      <nav class="nav" aria-label="Navegación principal">
+      <button class="menu-button mesa-menu" id="menuButton" type="button" aria-controls="tickets-nav" aria-expanded="false" aria-label="Abrir menú">☰</button><nav class="nav mesa-nav" id="tickets-nav" aria-label="Navegación principal">
         <p class="nav-label">MENÚ PRINCIPAL</p>
-        <a class="nav-item active" href="#dashboard" data-view="dashboard"><span class="nav-icon">⌂</span>Resumen</a>
-        <a class="nav-item" href="#tickets" data-view="tickets"><span class="nav-icon">▣</span>Mis tickets <span class="nav-count" id="openNavCount">4</span></a>
+        <a class="nav-item active" href="#dashboard" data-view="dashboard"><span class="nav-icon">▣</span>Tickets <span class="nav-count" id="openNavCount">0</span></a>
         <a class="nav-item" href="#new" data-action="new-ticket"><span class="nav-icon">＋</span>Nuevo ticket</a>
         <p class="nav-label nav-label-spaced">GESTIÓN</p>
-        <a class="nav-item" href="#team" data-panel="Equipo de TI"><span class="nav-icon">♙</span>Equipo de TI</a>
-        <a class="nav-item" href="#reports" data-panel="Reportes"><span class="nav-icon">↗</span>Reportes</a>
+        <a class="nav-item" href="#inventory" id="inventoryNav" data-action="inventory"><span class="nav-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5M7 21h10"/></svg></span>Dispositivos</a>
+        <a class="nav-item" href="#reports" id="reportsNav" data-action="reports"><span class="nav-icon">↗</span>Reportes</a>
         <a class="nav-item" href="#settings" data-panel="Configuración"><span class="nav-icon">⚙</span>Configuración</a>
       </nav>
 
@@ -51,16 +49,16 @@
         <span class="help-icon">?</span>
         <div><strong>¿Necesitas ayuda?</strong><p>Extensión 2401</p></div>
       </div>
-      <div class="sidebar-user">
-        <span class="avatar">MA</span>
+      <div class="sidebar-user mesa-account">
+        <span data-mesa-palette></span><span class="avatar">MA</span>
         <div><strong>Miguel Arroyo</strong><p>Administrador</p></div>
         <button class="icon-button" data-action="public-home" title="Volver al portal">↪</button>
       </div>
-    </aside>
+    </header>
 
     <main class="main-content">
       <header class="topbar">
-        <button class="menu-button" id="menuButton" aria-label="Abrir menú">☰</button>
+
         <div class="topbar-copy"><p>Viernes, 4 de septiembre</p><strong>Planta México</strong></div>
         <div class="topbar-actions">
           <label class="search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Buscar ticket..." aria-label="Buscar ticket"></label>
@@ -75,15 +73,15 @@
         </div>
 
         <div class="stats-grid">
-          <article class="stat-card accent-blue"><div class="stat-icon">▣</div><div><p>Tickets abiertos</p><strong id="openCount">4</strong><small><span class="trend up">↑ 12%</span> esta semana</small></div></article>
-          <article class="stat-card accent-amber"><div class="stat-icon">◷</div><div><p>En progreso</p><strong id="progressCount">3</strong><small>2 requieren atención</small></div></article>
-          <article class="stat-card accent-green"><div class="stat-icon">✓</div><div><p>Resueltos este mes</p><strong>28</strong><small><span class="trend up">↑ 8%</span> vs. mes anterior</small></div></article>
-          <article class="stat-card accent-violet"><div class="stat-icon">◴</div><div><p>Tiempo promedio</p><strong>3.2 h</strong><small><span class="trend down">↓ 18 min</span> de respuesta</small></div></article>
+          <article class="stat-card accent-blue"><div class="stat-icon">▣</div><div><p>Tickets abiertos</p><strong id="openCount">0</strong><small>Pendientes de atención</small></div></article>
+          <article class="stat-card accent-amber"><div class="stat-icon">◷</div><div><p>En progreso</p><strong id="progressCount">0</strong><small>En seguimiento</small></div></article>
+          <article class="stat-card accent-green"><div class="stat-icon">✓</div><div><p>Cerrados este mes</p><strong id="closedCount">0</strong><small>Con fecha de cierre registrada</small></div></article>
+          <article class="stat-card accent-violet"><div class="stat-icon">◴</div><div><p>Tiempo promedio al cierre</p><strong id="resolutionAverage">—</strong><small>Desde la apertura · sin archivados</small></div></article>
         </div>
 
         <div class="content-grid">
           <section class="panel tickets-panel">
-            <div class="panel-header"><div><h2>Tickets recientes</h2><p>Seguimiento de las solicitudes más recientes</p></div><button class="text-button" id="showAll">Ver todos →</button></div>
+            <div class="panel-header"><div><h2>Tickets</h2><p>Seguimiento de todas las solicitudes de soporte</p></div></div>
             <div class="filters">
               <div class="filter-pills" role="group" aria-label="Filtrar tickets">
                 <button class="pill active" data-filter="Todos">Todos</button><button class="pill" data-filter="Abierto">Abiertos</button><button class="pill" data-filter="En progreso">En progreso</button><button class="pill" data-filter="Cerrado">Cerrados</button>
@@ -125,9 +123,11 @@
     <section class="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receiptTitle"><button class="close-button receipt-close" data-action="close-receipt" aria-label="Cerrar">×</button><div class="receipt-check">✓</div><span class="eyebrow">SOLICITUD REGISTRADA</span><h2 id="receiptTitle">Tu ticket fue creado</h2><p class="receipt-intro">Conserva este comprobante para consultar el seguimiento.</p><div class="ticket-receipt" id="ticketReceipt"><small>FOLIO DE SEGUIMIENTO</small><strong id="receiptCode">TK-0000</strong><span id="receiptSubject">Solicitud de soporte</span><div><b id="receiptCategory">Soporte</b><b id="receiptDate">Ahora</b></div></div><div class="receipt-actions"><button class="secondary-button" id="copyCode">▣ Copiar código</button><button class="secondary-button" id="downloadImage">⇩ Guardar JPG</button><button class="primary-button" id="downloadPdf">▤ Guardar PDF</button></div><button class="receipt-done" data-action="close-receipt">Cerrar comprobante</button></section>
   </div>
   <div class="modal-backdrop" id="loginModal" hidden>
-    <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><button class="close-button login-close" data-action="close-login" aria-label="Cerrar">×</button><div class="login-shield">TI</div><span class="eyebrow">ACCESO RESTRINGIDO</span><h2 id="loginTitle">Administración de TI</h2><p>Ingresa tus credenciales para acceder al panel.</p><form id="loginForm"><label>Usuario<input name="username" autocomplete="username" placeholder="Usuario" required></label><label>Contraseña<div class="password-field"><input name="password" type="password" autocomplete="current-password" placeholder="Contraseña" required><button type="button" id="togglePassword" aria-label="Mostrar contraseña">◉</button></div></label><div class="login-error" id="loginError" hidden>Usuario o contraseña incorrectos.</div><button class="primary-button" type="submit">Ingresar al panel</button></form><small>Sólo para personal autorizado de Sistemas</small></section>
+    <section class="login-modal mesa-login-dialog" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><button class="close-button login-close" data-action="close-login" aria-label="Cerrar">×</button><div class="mesa-login-intro"><span class="eyebrow">MESA · SOPORTE INTERNO</span><h1 aria-label="Seguimiento claro. En un solo lugar."><span class="login-title-line" data-text-type="Seguimiento claro.&#10;En un solo lugar." aria-hidden="true"><span class="login-title-characters">Seguimiento claro.<br>En un solo lugar.</span></span></h1><p>Gestiona las solicitudes de soporte con tu cuenta de Sistemas.</p></div><div class="login-card"><img class="mesa-login-logo" src="mesa/logo-mesa.svg" alt="MESA"><span class="eyebrow">ACCESO RESTRINGIDO</span><h2 id="loginTitle">Administración de TI</h2><p>Ingresa tus credenciales para acceder al panel.</p><form id="loginForm"><label>Usuario<input name="username" autocomplete="username" placeholder="Usuario" required></label><label>Contraseña<div class="password-field"><input name="password" type="password" autocomplete="current-password" placeholder="Contraseña" required><button type="button" id="togglePassword" aria-label="Mostrar contraseña">◉</button></div></label><div class="login-error" id="loginError" hidden>Usuario o contraseña incorrectos.</div><button class="primary-button" type="submit">Ingresar al panel</button></form><small>Sólo para personal autorizado de Sistemas</small></div></section>
   </div>
-  <div class="modal-backdrop" id="detailModal" hidden><section class="detail-modal" role="dialog" aria-modal="true"><div class="detail-head"><div><span class="eyebrow">GESTIÓN DE ORDEN</span><h2 id="detailCode">TK-00000</h2><p id="detailCreated"></p></div><button class="close-button" data-action="close-detail">×</button></div><div class="detail-body"><div class="detail-summary"><h3 id="detailSubject"></h3><p id="detailDescription"></p><div class="detail-person"><b id="detailRequester"></b><span id="detailArea"></span></div><div class="attachment-list" id="attachmentList"></div></div><form id="detailForm"><label>Estado<select name="status"><option>Abierto</option><option>En progreso</option><option>Cerrado</option></select></label><label>Prioridad<select name="priority"><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select></label><label>Asignado a<input name="assignee" placeholder="Nombre del técnico"></label><button class="primary-button">Guardar cambios</button></form><div class="comments"><h3>Seguimiento y comentarios</h3><div id="commentList"></div><form id="commentForm"><textarea name="body" rows="3" placeholder="Agregar actualización para este ticket..." required></textarea><button class="secondary-button">Agregar comentario</button></form></div></div><div class="detail-footer"><button class="danger-button" id="deleteTicket">Eliminar ticket</button><button class="secondary-button" data-action="close-detail">Cerrar</button></div></section></div>
+  <div class="modal-backdrop" id="detailModal" hidden><section class="detail-modal" role="dialog" aria-modal="true"><div class="detail-head"><div><span class="eyebrow">GESTIÓN DE ORDEN</span><h2 id="detailCode">TK-00000</h2><p id="detailCreated"></p></div><button class="close-button" data-action="close-detail">×</button></div><div class="detail-body"><div class="detail-summary"><h3 id="detailSubject"></h3><p id="detailDescription"></p><div class="detail-person"><b id="detailRequester"></b><span id="detailArea"></span></div><div class="attachment-list" id="attachmentList"></div></div><form id="detailForm"><label>Estado<select name="status"><option>Abierto</option><option>En progreso</option><option>Cerrado</option></select></label><label>Prioridad<select name="priority"><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select></label><label>Asignado a<input name="assignee" placeholder="Nombre del técnico"></label><button class="primary-button">Guardar cambios</button></form><div class="comments"><h3>Seguimiento y comentarios</h3><div id="commentList"></div><form id="commentForm"><textarea name="body" rows="3" placeholder="Agregar actualización para este ticket..." required></textarea><button class="secondary-button">Agregar comentario</button></form></div></div><div class="detail-footer"><button class="danger-button" id="deleteTicket">Archivar ticket</button><button class="secondary-button" data-action="close-detail">Cerrar</button></div></section></div>
   <script src="app.js?v=6"></script>
-</body>
+  <script src="inventory.js?v=1"></script>
+  <script src="reports.js?v=1"></script>
+<script src="mesa/mesa-suite.js?v=20261009" defer></script><script src="mesa/mesa-appearance.js?v=20261012" defer></script><script src="mesa/mesa-particles.js?v=20261009-effects" defer></script><script src="mesa/mesa-glide.js?v=20261009-effects" defer></script><script src="mesa/mesa-text-type.js?v=20261009-effects" defer></script><script src="mesa/mesa-navigation.js?v=20261009-effects" defer></script></body>
 </html>
