@@ -102,3 +102,13 @@ En **Dispositivos**, abre la ficha y pulsa **Historial del equipo** para consult
 **Registrar** conserva fecha, tipo preventivo/correctivo, trabajo realizado, técnico y próxima revisión prevista. Actualiza el último mantenimiento y la próxima revisión. Un registro anterior al último queda en el historial y no retrocede la agenda; usa Programar si necesitas ajustar la próxima fecha. Una vez que existen trabajos registrados, la última fecha se actualiza desde la agenda, no editando la ficha del inventario. Registrar mantenimiento no cambia el estado de los tickets relacionados.
 
 Los avisos de vencimiento se muestran dentro de la agenda; no se envían correos ni notificaciones del sistema operativo. Validación: `npm run test:maintenance` (Docker local, app en puerto 8082 o `TEST_URL`). La prueba elimina únicamente sus equipos, tickets y mantenimientos temporales al terminar.
+
+## Configuración
+
+En **Configuración** puedes administrar áreas, categorías y los datos de soporte (nombre visible del encargado, sede, extensión, correo y horario informativo). Los datos se guardan en PostgreSQL y se publican en el portal, el panel, el contacto y los comprobantes PDF/JPG. El nombre visible es independiente de las credenciales `ADMIN_USER` / `ADMIN_PASSWORD`. El correo se muestra como contacto; no configura envío de mensajes. El horario no calcula presencia ni disponibilidad en tiempo real.
+
+Al activar esta función se importan una sola vez las áreas/categorías iniciales y los nombres existentes en tickets y dispositivos. Agregar, renombrar, desactivar y reactivar sólo requiere la interfaz. Siempre debe quedar al menos un área y una categoría activas. Los nombres no se duplican por diferencias entre mayúsculas y minúsculas. Las categorías activas también se muestran como tipos de soporte en el portal.
+
+Las nuevas solicitudes y los dispositivos nuevos deben usar opciones activas; la API también lo valida. Los registros históricos conservan el texto original al desactivar o renombrar una opción y se pueden seguir editando sin cambiarla. El filtro de tickets incluye las categorías históricas presentes en los registros. Las opciones desactivadas no reaparecen al reiniciar la app.
+
+`GET /api/config` sólo publica los datos de soporte y los catálogos activos. Las operaciones de administración requieren sesión de TI. Validación: `npm run test:settings`. La prueba crea opciones y registros temporales, modifica los datos de soporte para verificarlos, restaura los valores originales y limpia sus registros al terminar. La protección de la última opción activa se verifica en un esquema temporal aislado de los catálogos reales.

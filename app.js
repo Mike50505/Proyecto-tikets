@@ -34,9 +34,10 @@ function renderTickets() {
     </article>`).join("");
   empty.hidden = filtered.length > 0;
   list.hidden = filtered.length === 0;
+  document.dispatchEvent(new Event('mesa:tickets-rendered'));
 }
 
-function openModal() { modal.hidden = false; document.body.style.overflow = "hidden"; document.dispatchEvent(new Event('mesa:new-ticket')); setTimeout(() => modal.querySelector("input[name='subject']").focus(), 50); }
+function openModal() { modal.hidden = false; document.body.style.overflow = "hidden"; document.dispatchEvent(new Event('mesa:new-ticket')); modal.querySelector("input[name='requester']").focus(); }
 function closeModal() { modal.hidden = true; document.body.style.overflow = ""; }
 function showToast(title, message) {
   const toast = document.querySelector("#toast");
@@ -44,11 +45,12 @@ function showToast(title, message) {
   toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 3500);
 }
 function mobileSafeDate(value = new Date()) { const date=value instanceof Date?value:new Date(value); if(Number.isNaN(date.getTime()))return "Ahora"; const pad=n=>n<10?`0${n}`:`${n}`; return `${pad(date.getDate())}/${pad(date.getMonth()+1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`; }
+function supportContact(){const s=window.mesaConfig?.support;return s?[s.extension?'Ext. '+s.extension:'',s.email,s.hours].filter(Boolean).join(' · '):'Consulta al equipo de Sistemas.';}
 function showPublic() { sessionStorage.removeItem("mesaTiToken"); document.querySelector("#publicPortal").hidden = false; document.querySelector("#adminShell").hidden = true; window.scrollTo({ top: 0, behavior: "smooth" }); }
 function setAdminView(view) {
-  for (const [id,name] of [['dashboard','tickets'],['inventoryPage','inventory'],['reportsPage','reports'],['maintenancePage','maintenance']]) {const page=document.getElementById(id);if(page)page.hidden=name!==view;}
+  for (const [id,name] of [['dashboard','tickets'],['inventoryPage','inventory'],['reportsPage','reports'],['maintenancePage','maintenance'],['settingsPage','settings']]) {const page=document.getElementById(id);if(page)page.hidden=name!==view;}
   document.querySelector('#globalSearch').closest('label').hidden=view!=='tickets';
-  document.querySelectorAll('#tickets-nav .nav-item').forEach(link=>{const active=(view==='tickets' && link.dataset.view==='dashboard') || (view==='inventory' && link.id==='inventoryNav') || (view==='reports' && link.id==='reportsNav') || (view==='maintenance' && link.id==='maintenanceNav');link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+  document.querySelectorAll('#tickets-nav .nav-item').forEach(link=>{const active=(view==='tickets' && link.dataset.view==='dashboard') || (view==='inventory' && link.id==='inventoryNav') || (view==='reports' && link.id==='reportsNav') || (view==='maintenance' && link.id==='maintenanceNav') || (view==='settings' && link.id==='settingsNav');link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
   document.dispatchEvent(new CustomEvent('mesa:view',{detail:view}));
 }
 async function showAdmin() { document.querySelector("#publicPortal").hidden = true; document.querySelector("#adminShell").hidden = false; window.scrollTo(0, 0); await loadTickets(); }
@@ -65,8 +67,8 @@ document.querySelectorAll("[data-action='public-home']").forEach(button => butto
 document.querySelectorAll("[data-action='admin-view']").forEach(button => button.addEventListener("click", requestAdminAccess));
 document.querySelectorAll("[data-action='track']").forEach(button => button.addEventListener("click", () => document.querySelector("#lookupSection").scrollIntoView({ behavior: "smooth" })));
 document.querySelectorAll("[data-action='solutions']").forEach(button => button.addEventListener("click", () => { showPublic(); setTimeout(() => document.querySelector(".service-section").scrollIntoView({ behavior: "smooth" }), 20); }));
-document.querySelectorAll("[data-action='contact']").forEach(button => button.addEventListener("click", () => showToast("Contacto de TI", "Comunícate a la extensión 2401.")));
-document.querySelectorAll(".service-card").forEach(button => button.addEventListener("click", () => { openModal(); modal.querySelector("select[name='category']").value = button.dataset.category; }));
+document.querySelectorAll("[data-action='contact']").forEach(button => button.addEventListener("click", () => showToast("Contacto de TI", supportContact())));
+document.querySelector('.service-grid').addEventListener('click',event=>{const button=event.target.closest('.service-card');if(!button)return;openModal();modal.querySelector("select[name='category']").value=button.dataset.category;});
 document.querySelectorAll("[data-action='close-modal']").forEach(button => button.addEventListener("click", closeModal));
 document.querySelectorAll("[data-action='close-receipt']").forEach(button => button.addEventListener("click", closeReceipt));
 document.querySelectorAll("[data-action='close-login']").forEach(button => button.addEventListener("click", closeLogin));
@@ -97,11 +99,22 @@ document.querySelector("#attachmentList").addEventListener("click",async event=>
 
 document.querySelector("#lookupForm").addEventListener("submit", async event => {
   event.preventDefault(); const folio = document.querySelector("#lookupInput").value.trim().toUpperCase(); const result = document.querySelector("#lookupResult"); result.hidden = false;
-  try { const ticket=normalize(await api(`/api/tickets/${encodeURIComponent(folio)}`)); result.innerHTML=`<strong>${ticket.id} · ${ticket.status}</strong>${ticket.title}<br><small>Asignado a: ${ticket.assignee}</small>`; } catch { result.innerHTML=`<strong>Folio no encontrado</strong>Verifica el número o comunícate a la extensión 2401.`; }
+  try { const ticket=normalize(await api(`/api/tickets/${encodeURIComponent(folio)}`)); result.innerHTML=`<strong>${safe(ticket.id)} · ${safe(ticket.status)}</strong>${safe(ticket.title)}<br><small>Asignado a: ${safe(ticket.assignee)}</small>`; } catch { result.innerHTML=`<strong>Folio no encontrado</strong>Verifica el número o contacta a Sistemas: ${safe(supportContact())}`; }
 });
 
 document.querySelector("#copyCode").addEventListener("click", async () => { const code=document.querySelector("#receiptCode").textContent;let copied=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(code);copied=true}}catch{}if(!copied){const input=document.createElement("input");input.value=code;input.style.position="fixed";input.style.opacity="0";document.body.appendChild(input);input.focus();input.select();input.setSelectionRange(0,999);copied=document.execCommand("copy");input.remove()}if(!copied&&navigator.share){await navigator.share({title:"Folio Mesa TI",text:code});copied=true}showToast(copied?"Código copiado":"Código del ticket",copied?`${code} está listo para pegar.`:`Mantén presionado para copiar: ${code}`); });
-function receiptCanvas(){const ticket=receiptTicket;const canvas=document.createElement("canvas");canvas.width=1200;canvas.height=675;const ctx=canvas.getContext("2d");ctx.fillStyle="#f3f9fd";ctx.fillRect(0,0,1200,675);ctx.fillStyle="#0879d9";ctx.fillRect(0,0,24,675);ctx.fillStyle="#172235";ctx.font="700 34px Arial";ctx.fillText("MESA TI · PLANTA MÉXICO",90,100);ctx.fillStyle="#718096";ctx.font="24px Arial";ctx.fillText("COMPROBANTE DE SOLICITUD",90,165);ctx.fillStyle="#0879d9";ctx.font="700 86px Arial";ctx.fillText(ticket.id,90,290);ctx.fillStyle="#172235";ctx.font="32px Arial";ctx.fillText(ticket.title.slice(0,58),90,365);ctx.fillStyle="#718096";ctx.font="24px Arial";ctx.fillText(`${ticket.category} · ${ticket.priority} · ${document.querySelector("#receiptDate").textContent}`,90,435);ctx.fillText("Consulta el seguimiento con este folio · Extensión 2401",90,555);return canvas}
+function receiptCanvas(){
+  const ticket=receiptTicket,support=window.mesaConfig?.support;
+  const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=800;const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#f3f9fd';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#0879d9';ctx.fillRect(0,0,24,canvas.height);
+  function line(text,y,size=24,color='#718096',weight=400){ctx.fillStyle=color;let font=size;do{ctx.font=`${weight} ${font}px Arial`;if(ctx.measureText(text).width<=1020)break;font--;}while(font>14);if(ctx.measureText(text).width>1020){while(ctx.measureText(text+'…').width>1020)text=text.slice(0,-1);text+='…';}ctx.fillText(text,90,y);}
+  line(`MESA TI · ${support?.site_name||'Soporte interno'}`,85,34,'#172235',700);
+  line('COMPROBANTE DE SOLICITUD',145);line(ticket.id,260,86,'#0879d9',700);
+  line(ticket.title,330,32,'#172235');line(`${ticket.category} · ${ticket.priority} · ${document.querySelector('#receiptDate').textContent}`,390);
+  line('Conserva este folio para consultar el seguimiento.',460);
+  if(support){line(`Soporte: ${support.technician_name}`,515);line(support.extension?'Ext. '+support.extension:'',560);line(support.email||'',605);line(`Horario: ${support.hours}`,660);}
+  return canvas;
+}
 document.querySelector("#downloadImage").addEventListener("click",()=>{if(!receiptTicket)return;try{const link=document.createElement("a");link.download=`${receiptTicket.id}.jpg`;link.href=receiptCanvas().toDataURL("image/jpeg",.94);document.body.appendChild(link);link.click();link.remove();showToast("Imagen preparada",`Se descargó ${receiptTicket.id}.jpg`)}catch(error){showToast("No se pudo guardar",error.message)}});
 document.querySelector("#downloadPdf").addEventListener("click",()=>{if(!receiptTicket)return;const url=`/api/tickets/${encodeURIComponent(receiptTicket.id)}/receipt.pdf`;const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener";document.body.appendChild(link);link.click();link.remove()});
 

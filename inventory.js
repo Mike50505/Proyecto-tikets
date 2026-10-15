@@ -25,7 +25,7 @@
     <form id="invForm"><div class="inv-form-grid">
       <label>Nombre de la computadora<input name="name" maxlength="200" placeholder="Ej. PC-ALMACEN-01" required></label>
       <label>Tipo de dispositivo<select name="kind" data-glide-skip><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option></select></label>
-      <label>Área<input name="area" maxlength="200" list="invAreas" placeholder="Ej. Almacén" required><datalist id="invAreas"></datalist></label>
+      <label>Área<select name="area" data-glide-skip required><option value="">Selecciona el área del equipo</option></select></label>
       <label>Responsable / asignado a<input name="owner" maxlength="200" placeholder="Nombre de la persona" required></label>
       <label>Usuario del equipo<input name="username" maxlength="200" autocomplete="off" placeholder="Ej. empresa\\usuario"></label>
       <label>Contraseña<div class="inv-password"><input name="password" type="password" maxlength="1000" autocomplete="new-password" placeholder="Opcional"><button type="button" id="invReveal" class="secondary-button" aria-label="Mostrar contraseña">Mostrar</button></div><small id="invPasswordHint" class="inv-muted"></small></label>
@@ -52,7 +52,6 @@
     const area = $('#invArea').value;
     $('#invArea').innerHTML = '<option value="">Todas las áreas</option>'+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
     $('#invArea').value = areas.includes(area) ? area : '';
-    $('#invAreas').innerHTML = areas.map(a=>`<option value="${esc(a)}"></option>`).join('');
     $('#invStats').innerHTML = [[devices.length,'Dispositivos'],[devices.filter(d=>d.kind==='desktop').length,'PC de escritorio'],[devices.filter(d=>d.kind==='laptop').length,'Laptops'],[devices.filter(d=>d.x===null).length,'Sin ubicación']].map(([count,label])=>`<article class="inv-stat"><span>${label}</span><strong>${count}</strong></article>`).join('');
     const rows = filtered();
     $('#invList').innerHTML = rows.length ? `<table class="inv-table"><thead><tr><th scope="col">Dispositivo</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Último mantenimiento</th><th scope="col">Ubicación</th></tr></thead><tbody>${rows.map(d=>`<tr><td><button class="inv-device-link" data-device="${d.id}">${esc(d.name)}</button><small>${esc(d.model || d.serial || 'Sin modelo registrado')}</small></td><td><span class="inv-type ${d.kind}">${icons[d.kind]}${kinds[d.kind]}</span></td><td>${esc(d.area)}</td><td>${esc(d.owner)}</td><td>${dateLabel(d.last_maintenance)}</td><td>${d.x===null ? `<button class="inv-device-link" data-place="${d.id}">Colocar en plano</button>` : `<button class="inv-device-link" data-locate="${d.id}">Ver en plano</button>`}</td></tr>`).join('')}</tbody></table>` : `<div class="inv-empty"><h3>${devices.length ? 'No encontramos dispositivos' : 'Comienza tu inventario'}</h3><p class="inv-muted">${devices.length ? 'Prueba con otros filtros.' : 'Agrega tu primer equipo y colócalo en el plano de la planta.'}</p></div>`;
@@ -84,6 +83,7 @@
     field('last_maintenance').readOnly=!!device?.has_maintenance;
     field('last_maintenance').title=device?.has_maintenance?'Esta fecha se actualiza desde la agenda de mantenimiento.':'';
     for(const name of ['name','kind','area','owner','username','serial','model','notes','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
+    document.dispatchEvent(new CustomEvent('mesa:device-opened',{detail:device}));
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
     $('#invPasswordHint').textContent=device?.has_password ? 'Deja este campo vacío para conservarla. Mostrar permite consultar la contraseña guardada.' : 'La contraseña se guarda cifrada y no aparece en el listado.';
     $('#invReveal').textContent='Mostrar'; $('#invReveal').setAttribute('aria-label','Mostrar contraseña'); $('#invDelete').hidden=!device; $('#invDialogTitle').textContent=device ? device.name : 'Agregar dispositivo'; positionLabel(); dialog.showModal(); field('name').focus();

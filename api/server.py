@@ -1,4 +1,4 @@
-import base64, hmac, json, os, secrets, sqlite3, time
+import base64, hmac, json, os, secrets, sqlite3, time, textwrap
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 import psycopg
@@ -6,6 +6,7 @@ from psycopg.rows import dict_row
 from inventory import SCHEMA, handle as inventory_handle
 from reports import SCHEMA as REPORT_SCHEMA, seed_history, event as ticket_event, update as update_ticket, archive as archive_ticket, handle as reports_handle
 from maintenance import SCHEMA as MAINTENANCE_SCHEMA, handle as maintenance_handle, name_link
+from settings import SCHEMA as SETTINGS_SCHEMA, seed as seed_settings, handle as settings_handle, active_choice, support
 
 DATABASE_URL=os.getenv("DATABASE_URL")
 LEGACY_DB=os.getenv("LEGACY_DB","/legacy/tickets.db")
@@ -22,7 +23,8 @@ def init_db():
         c.execute(SCHEMA)
         c.execute(REPORT_SCHEMA)
         c.execute(MAINTENANCE_SCHEMA)
-      migrate_legacy(); sync_sequence(); seed_history(db); return
+        c.execute(SETTINGS_SCHEMA)
+      migrate_legacy(); sync_sequence(); seed_history(db); seed_settings(db); return
     except Exception as e: print("Esperando PostgreSQL:",e); time.sleep(2)
   raise RuntimeError("PostgreSQL no disponible")
 
@@ -52,11 +54,24 @@ def ticket_dict(row,c=None):
   return data
 
 def make_pdf(ticket):
-  def esc(text): return str(text).replace('\\','\\\\').replace('(','\\(').replace(')','\\)').encode('latin-1','replace').decode('latin-1')
-  lines=["MESA TI - PLANTA MEXICO","COMPROBANTE DE SOLICITUD",ticket['code'],ticket['subject'],f"Categoria: {ticket['category']}   Prioridad: {ticket['priority']}",f"Solicitante: {ticket['requester']}","Conserva este folio para consultar el seguimiento. Extension 2401."]
-  sizes=[18,12,34,16,12,12,11]; y=[750,715,650,600,560,525,450]
-  stream=''.join(f"BT /F1 {size} Tf 70 {pos} Td ({esc(line)}) Tj ET\n" for line,size,pos in zip(lines,sizes,y)).encode('latin-1')
-  objs=[b'<< /Type /Catalog /Pages 2 0 R >>',b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',b'<< /Length '+str(len(stream)).encode()+b' >>\nstream\n'+stream+b'endstream',b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+  def esc(text): return str(text).replace('\\','\\\\').replace('(','\\(').replace(')','\\)').encode('cp1252','replace').decode('latin-1')
+  with db() as c: info=support(c)
+  blocks=[('MESA TI',18),(info['site_name'],12),('COMPROBANTE DE SOLICITUD',12),(ticket['code'],34),
+    (str(ticket['subject'])[:120],14),(f"Categoria: {str(ticket['category'])[:100]} | Prioridad: {ticket['priority']}",12),
+    (f"Solicitante: {str(ticket['requester'])[:150]}",12),('Conserva este folio para consultar el seguimiento.',11),
+    (f"Soporte: {info['technician_name']}",11)]
+  if info['extension']:blocks.append((f"Extension: {info['extension']}",11))
+  if info['email']:blocks.append((f"Correo: {info['email']}",11))
+  blocks.append((f"Horario: {info['hours']}",11))
+  commands=[]; pos=750; previous_size=18
+  for value,size in blocks:
+    pos-=max(0,size-previous_size)
+    for line in textwrap.wrap(' '.join(str(value).split()),width=max(12,int(472/(size*1.02)))):
+      commands.append(f"BT /F1 {size} Tf 70 {pos} Td ({esc(line)}) Tj ET\n");pos-=size+5
+    pos-=6
+    previous_size=size
+  stream=''.join(commands).encode('latin-1')
+  objs=[b'<< /Type /Catalog /Pages 2 0 R >>',b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',b'<< /Length '+str(len(stream)).encode()+b' >>\nstream\n'+stream+b'endstream',b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>']
   out=b'%PDF-1.4\n'; offsets=[0]
   for i,obj in enumerate(objs,1): offsets.append(len(out)); out+=f'{i} 0 obj\n'.encode()+obj+b'\nendobj\n'
   xref=len(out); out+=f'xref\n0 {len(objs)+1}\n0000000000 65535 f \n'.encode(); out+=b''.join(f'{o:010d} 00000 n \n'.encode() for o in offsets[1:]); out+=f'trailer << /Size {len(objs)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF'.encode(); return out
@@ -74,6 +89,7 @@ class Handler(BaseHTTPRequestHandler):
     self.json(401,{'error':'Sesión no válida o expirada'});return False
   def do_GET(self):
     path=urlparse(self.path).path
+    if settings_handle(self,path,'GET',db):return
     if maintenance_handle(self,path,'GET',db):return
     if inventory_handle(self,path,'GET',db):return
     if reports_handle(self,path,db,serialize):return
@@ -100,7 +116,8 @@ class Handler(BaseHTTPRequestHandler):
     self.json(404,{'error':'Ruta no encontrada'})
   def do_POST(self):
     path,data=urlparse(self.path).path,self.body()
-    if data is None:return self.json(400,{'error':'JSON inválido'})
+    if not isinstance(data,dict):return self.json(400,{'error':'JSON inválido'})
+    if settings_handle(self,path,'POST',db,data):return
     if maintenance_handle(self,path,'POST',db,data,ADMIN_USER):return
     if inventory_handle(self,path,'POST',db,data):return
     if path=='/api/auth/login':
@@ -122,7 +139,10 @@ class Handler(BaseHTTPRequestHandler):
         if len(raw)>MAX_FILE:return self.json(400,{'error':'Cada archivo debe pesar menos de 10 MB'})
         validated.append((name,mime,raw))
       with db() as c:
-        try: linked=name_link(c,data.get('device_name',''))
+        try:
+          data['area']=active_choice(c,'area',data['area'])
+          data['category']=active_choice(c,'category',data['category'])
+          linked=name_link(c,data.get('device_name',''))
         except ValueError as e:return self.json(400,{'error':str(e)})
         row=c.execute("INSERT INTO tickets(code,requester,area,subject,category,priority,description) VALUES('',%s,%s,%s,%s,%s,%s) RETURNING *",tuple(str(data[k]).strip() for k in required)).fetchone();code=f"TK-{row['id']:05d}";row=c.execute('UPDATE tickets SET code=%s WHERE id=%s RETURNING *',(code,row['id'])).fetchone()
         row=c.execute('UPDATE tickets SET device_id=%s,device_name=%s WHERE id=%s RETURNING *',(linked['device_id'],linked['device_name'],row['id'])).fetchone()
@@ -142,11 +162,13 @@ class Handler(BaseHTTPRequestHandler):
     self.json(404,{'error':'Ruta no encontrada'})
   def do_PATCH(self):
     path=urlparse(self.path).path
+    if path.startswith('/api/admin/config/'):
+      settings_handle(self,path,'PATCH',db,self.body());return
     if path == '/api/devices' or path.startswith('/api/devices/'):
       inventory_handle(self,path,'PATCH',db,self.body());return
     if not self.admin():return
     path,data=urlparse(self.path).path,self.body()
-    if not path.startswith('/api/admin/tickets/') or data is None:return self.json(404,{'error':'Ruta no encontrada'})
+    if not path.startswith('/api/admin/tickets/') or not isinstance(data,dict):return self.json(404,{'error':'Ruta no encontrada'})
     code=path.rsplit('/',1)[-1].upper();allowed={'status','priority','assignee','category'};fields={k:str(v).strip() for k,v in data.items() if k in allowed}
     if 'device_id' in data:fields['device_id']=data['device_id']
     if not fields:return self.json(400,{'error':'Sin cambios válidos'})

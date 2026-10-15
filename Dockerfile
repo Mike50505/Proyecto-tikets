@@ -11,6 +11,7 @@ COPY app.js /usr/share/nginx/html/app.js
 COPY inventory.js inventory.css Bodegas_Ramos_V06.svg /usr/share/nginx/html/
 COPY reports.js reports.css /usr/share/nginx/html/
 COPY maintenance.js maintenance.css /usr/share/nginx/html/
+COPY settings.js settings.css /usr/share/nginx/html/
 COPY mesa /usr/share/nginx/html/mesa
 COPY mesa-adapter.css /usr/share/nginx/html/mesa-adapter.css
 COPY logo-mesa.svg /usr/share/nginx/html/logo-mesa.svg

@@ -21,7 +21,7 @@ try {
   assert.equal(invalid.status(),400);
   assert.equal((await (await req('GET','/api/reports/tickets')).json()).filter(t=>t.requester===prefix).length,0,'Una solicitud rechazada no aparece en el historial');
   for(let i=0;i<27;i++) {
-    const response=await req('POST','/api/tickets',{requester:prefix,area:i%2?'Calidad E2E':'Sistemas E2E',subject:i===0?'=1+1':`${prefix} ${i}`,category:i%2?'Software':'Hardware',priority:'Media',description:'Registro temporal de validación de reportes',attachments:i===0?[{name:'evidencia-reportes.txt',type:'text/plain',data:Buffer.from('Evidencia temporal de prueba').toString('base64')}]:[]});
+    const response=await req('POST','/api/tickets',{requester:prefix,area:i%2?'Calidad':'Sistemas',subject:i===0?'=1+1':`${prefix} ${i}`,category:i%2?'Software':'Hardware',priority:'Media',description:'Registro temporal de validación de reportes',attachments:i===0?[{name:'evidencia-reportes.txt',type:'text/plain',data:Buffer.from('Evidencia temporal de prueba').toString('base64')}]:[]});
     assert.equal(response.status(),201);const t=await response.json();ids.push(t.id);
   }
   const data=await (await req('GET','/api/tickets')).json();

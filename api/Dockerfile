@@ -4,6 +4,7 @@ COPY server.py .
 COPY inventory.py .
 COPY reports.py .
 COPY maintenance.py .
+COPY settings.py .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN addgroup -S app && adduser -S app -G app && mkdir -p /data && chown app:app /data

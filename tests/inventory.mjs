@@ -31,7 +31,7 @@ try {
   await form.locator('[name=kind]').selectOption('laptop');
   assert.equal(await form.locator('[name=kind]').inputValue(),'laptop');
   await form.locator('[name=kind]').selectOption('desktop');
-  await form.locator('[name=area]').fill('Sistemas E2E');
+  await form.locator('[name=area]').selectOption('Sistemas');
   await form.locator('[name=owner]').fill('Responsable de prueba');
   await form.locator('[name=password]').fill('E2E-password-only');
   await form.locator('[name=last_maintenance]').fill('2026-09-01');
@@ -59,7 +59,7 @@ try {
   await page.locator('#invSave').click();
   await page.locator('#deviceDialog').waitFor({state:'hidden'});
   assert.equal((await (await request('GET',`/api/devices/${desktop.id}/password`)).json()).password,'E2E-password-only');
-  const payload={name:`${prefix}-Laptop`,kind:'laptop',area:'Calidad E2E',owner:'Prueba portátil',x:null,y:null};
+  const payload={name:`${prefix}-Laptop`,kind:'laptop',area:'Calidad',owner:'Prueba portátil',x:null,y:null};
   const created=await request('POST','/api/devices',payload);
   assert.equal(created.status(),201);const laptop=await created.json();ids.push(laptop.id);
   assert.equal((await request('POST','/api/devices',payload)).status(),409);

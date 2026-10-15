@@ -3,6 +3,7 @@ import os
 import math
 from datetime import date
 from cryptography.fernet import Fernet, InvalidToken
+from settings import active_choice
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS devices (
  id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
@@ -84,10 +85,12 @@ def handle(handler, path, method, db, data=None):
             elif method in ('POST','PATCH') and ((method == 'POST' and len(parts) == 2) or (method == 'PATCH' and len(parts) == 3)):
                 fields = validate(data)
                 if method == 'POST':
+                    fields['area']=active_choice(c,'area',fields['area'])
                     columns = ','.join(fields); slots = ','.join(['%s']*len(fields))
                     row = c.execute(f'INSERT INTO devices ({columns}) VALUES ({slots}) RETURNING *', list(fields.values())).fetchone()
                 else:
-                    previous=c.execute('SELECT last_maintenance FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
+                    previous=c.execute('SELECT last_maintenance,area FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
+                    fields['area']=active_choice(c,'area',fields['area'],previous['area'] if previous else None)
                     if previous and previous['last_maintenance'] != fields['last_maintenance'] and c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(ident,)).fetchone():
                         raise ValueError('El equipo tiene mantenimientos registrados. Usa la agenda para registrar otro mantenimiento.')
                     sets = ','.join(f'{k}=%s' for k in fields)
