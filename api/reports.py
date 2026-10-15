@@ -1,5 +1,6 @@
 """Ticket lifecycle history. Historical close dates are never inferred from updates."""
 import json
+from maintenance import device_link
 
 SCHEMA = """
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
@@ -28,6 +29,10 @@ def event(c, ident, action, actor, changes=None):
 def update(c, code, fields, actor):
     previous = c.execute('SELECT * FROM tickets WHERE code=%s AND deleted_at IS NULL FOR UPDATE',(code,)).fetchone()
     if not previous: return None
+    if 'device_id' in fields:
+        if fields['device_id'] != previous['device_id']:
+            fields={**fields,**device_link(c,fields['device_id'])}
+        else: fields={k:v for k,v in fields.items() if k!='device_id'}
     changes = {k:{'antes':previous[k], 'despues':v} for k,v in fields.items() if previous[k] != v}
     if not changes: return previous
     sets = ','.join(f'{k}=%s' for k in fields)

@@ -38,6 +38,9 @@
   document.body.append(dialog);
   const $ = selector => document.querySelector(selector);
   const form = $('#invForm');
+  const historyButton=document.createElement('button');historyButton.type='button';historyButton.id='invHistory';historyButton.className='secondary-button';historyButton.textContent='Historial del equipo';historyButton.hidden=true;
+  form.querySelector('footer').prepend(historyButton);
+  historyButton.addEventListener('click',()=>{if(selected)document.dispatchEvent(new CustomEvent('mesa:device-history',{detail:selected.id}));});
   const field = name => form.elements.namedItem(name);
   let devices = [], selected = null, view = 'list', zoom = 1, placing = false, loaded = false, dirtyPassword = false, revealRequest = 0, opener = null;
   const localToday = () => {const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
@@ -76,7 +79,10 @@
   new MutationObserver(()=>{if($('#adminShell').hidden) clear();}).observe($('#adminShell'),{attributes:true,attributeFilter:['hidden']});
   function positionLabel() {$('#invPositionLabel').textContent = field('x').value === '' || field('y').value === '' ? 'Aún no se ha ubicado' : `X: ${field('x').value}% · Y: ${field('y').value}%`;}
   function openDevice(device=null) {
+    historyButton.hidden=!device;
     opener = document.activeElement; revealRequest++; selected=device; dirtyPassword=false; form.reset(); $('#invFormError').hidden = true;
+    field('last_maintenance').readOnly=!!device?.has_maintenance;
+    field('last_maintenance').title=device?.has_maintenance?'Esta fecha se actualiza desde la agenda de mantenimiento.':'';
     for(const name of ['name','kind','area','owner','username','serial','model','notes','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
     $('#invPasswordHint').textContent=device?.has_password ? 'Deja este campo vacío para conservarla. Mostrar permite consultar la contraseña guardada.' : 'La contraseña se guarda cifrada y no aparece en el listado.';
@@ -84,6 +90,7 @@
   }
   function closeDevice() {revealRequest++;field('password').value='';field('password').type='password';dialog.close();selected=null;opener?.focus();}
   $('#invAdd').addEventListener('click',()=>openDevice());
+  document.addEventListener('mesa:devices-changed',async()=>{if(page.hidden)return;await load();if(selected){const current=devices.find(d=>d.id===selected.id);if(current){selected=current;field('last_maintenance').value=current.last_maintenance||'';field('last_maintenance').readOnly=!!current.has_maintenance;}}});
   $('#invClose').addEventListener('click',closeDevice);$('#invCancel').addEventListener('click',closeDevice);
   dialog.addEventListener('cancel',e=>{e.preventDefault();closeDevice();});
   field('password').addEventListener('input',()=>{dirtyPassword=true;});

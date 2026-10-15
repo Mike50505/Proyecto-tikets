@@ -90,3 +90,15 @@ Los tickets anteriores a esta función tienen un movimiento **Registro previo**.
 **Exportar CSV** descarga todos los resultados filtrados, con protección ante fórmulas en textos. La ficha tiene su propia exportación del historial. **Imprimir / PDF** abre la impresión del navegador; selecciona Guardar como PDF para obtener el documento. La impresión incluye todas las páginas de la selección.
 
 Validación: `npm run test:reports`. Requiere Docker local y crea registros temporales que elimina permanentemente al terminar, incluso si se archivaron durante la prueba.
+
+## Equipos relacionados y mantenimiento
+
+Al crear un ticket puedes indicar la computadora por nombre. Si coincide con un equipo del inventario se vincula automáticamente; un nombre no inventariado se conserva como referencia, sin impedir la solicitud. El portal público no permite consultar el catálogo de dispositivos. En una sesión de TI aparecen sugerencias; desde la gestión del ticket puedes seleccionar, cambiar o desvincular el dispositivo. Los cambios de asociación quedan en el historial de Reportes, que también muestra y exporta el equipo relacionado.
+
+En **Dispositivos**, abre la ficha y pulsa **Historial del equipo** para consultar sus tickets (incluidos los archivados) y los trabajos realizados. Los folios abren el historial completo del ticket. Los equipos con tickets o mantenimientos asociados no se eliminan para conservar su historial.
+
+**Mantenimiento** incluye la agenda de equipos con revisiones vencidas, para hoy, próximas a 30 días, programadas y sin fecha. Cada equipo inicia con una frecuencia de 6 meses, editable de 1 a 24 meses mediante **Programar**. Puedes establecer una fecha manual o dejarla vacía para calcularla desde el último mantenimiento. Los meses respetan su duración: por ejemplo, 31 de enero más un mes da el último día de febrero. Las fechas se evalúan en Ciudad de México.
+
+**Registrar** conserva fecha, tipo preventivo/correctivo, trabajo realizado, técnico y próxima revisión prevista. Actualiza el último mantenimiento y la próxima revisión. Un registro anterior al último queda en el historial y no retrocede la agenda; usa Programar si necesitas ajustar la próxima fecha. Una vez que existen trabajos registrados, la última fecha se actualiza desde la agenda, no editando la ficha del inventario. Registrar mantenimiento no cambia el estado de los tickets relacionados.
+
+Los avisos de vencimiento se muestran dentro de la agenda; no se envían correos ni notificaciones del sistema operativo. Validación: `npm run test:maintenance` (Docker local, app en puerto 8082 o `TEST_URL`). La prueba elimina únicamente sus equipos, tickets y mantenimientos temporales al terminar.

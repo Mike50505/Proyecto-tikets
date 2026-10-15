@@ -57,7 +57,9 @@ def validate(data):
         result['password_encrypted'] = cipher().encrypt(password.encode()).decode() if password else ''
     return result
 
-def public(row):
+def public(row,c=None):
+    if c and 'has_maintenance' not in row:
+        row={**row,'has_maintenance':bool(c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(row['id'],)).fetchone())}
     return {**{k: v.isoformat() if hasattr(v, 'isoformat') else v for k,v in row.items() if k != 'password_encrypted'},
             'has_password': bool(row['password_encrypted'])}
 
@@ -72,7 +74,7 @@ def handle(handler, path, method, db, data=None):
     try:
         with db() as c:
             if method == 'GET' and path == '/api/devices':
-                handler.json(200, [public(r) for r in c.execute('SELECT * FROM devices ORDER BY lower(name)').fetchall()])
+                handler.json(200, [public(r) for r in c.execute('SELECT d.*,EXISTS(SELECT 1 FROM device_maintenance m WHERE m.device_id=d.id) AS has_maintenance FROM devices d ORDER BY lower(name)').fetchall()])
             elif method == 'GET' and len(parts) == 4 and parts[3] == 'password':
                 row = c.execute('SELECT password_encrypted FROM devices WHERE id=%s', (ident,)).fetchone()
                 if not row: handler.json(404, {'error':'Dispositivo no encontrado'})
@@ -85,11 +87,14 @@ def handle(handler, path, method, db, data=None):
                     columns = ','.join(fields); slots = ','.join(['%s']*len(fields))
                     row = c.execute(f'INSERT INTO devices ({columns}) VALUES ({slots}) RETURNING *', list(fields.values())).fetchone()
                 else:
+                    previous=c.execute('SELECT last_maintenance FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
+                    if previous and previous['last_maintenance'] != fields['last_maintenance'] and c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(ident,)).fetchone():
+                        raise ValueError('El equipo tiene mantenimientos registrados. Usa la agenda para registrar otro mantenimiento.')
                     sets = ','.join(f'{k}=%s' for k in fields)
                     row = c.execute(f'UPDATE devices SET {sets}, updated_at=NOW() WHERE id=%s RETURNING *', list(fields.values())+[ident]).fetchone()
                 # Commit before reporting success so constraint failures are handled here.
                 c.commit()
-                handler.json(201 if method == 'POST' else 200, public(row)) if row else handler.json(404, {'error':'Dispositivo no encontrado'})
+                handler.json(201 if method == 'POST' else 200, public(row,c)) if row else handler.json(404, {'error':'Dispositivo no encontrado'})
             elif method == 'DELETE' and len(parts) == 3:
                 row = c.execute('DELETE FROM devices WHERE id=%s RETURNING id', (ident,)).fetchone()
                 c.commit()
@@ -99,6 +104,7 @@ def handle(handler, path, method, db, data=None):
     except InvalidToken: handler.json(409, {'error':'No se pudo descifrar. Revisa la clave de cifrado del servidor.'})
     except Exception as e:
         if getattr(e, 'sqlstate', None) == '23505': handler.json(409, {'error':'Ya existe un dispositivo con ese nombre'})
+        elif getattr(e, 'sqlstate', None) == '23503': handler.json(409, {'error':'Este equipo tiene tickets o mantenimientos asociados. Se conserva para no perder su historial.'})
         else:
             print('Error de inventario:', type(e).__name__)
             handler.json(500, {'error':'No fue posible guardar o consultar el inventario'})

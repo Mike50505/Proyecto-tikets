@@ -1,1 +1,1 @@
-{"private":true,"devDependencies":{"playwright-core":"1.55.0"},"scripts":{"test:e2e":"node --env-file=.env tests/e2e.mjs","test:inventory":"node --env-file=.env tests/inventory.mjs","test:reports":"node --env-file=.env tests/reports.mjs"}}
+{"private":true,"devDependencies":{"playwright-core":"1.55.0"},"scripts":{"test:e2e":"node --env-file=.env tests/e2e.mjs","test:inventory":"node --env-file=.env tests/inventory.mjs","test:reports":"node --env-file=.env tests/reports.mjs","test:maintenance":"node --env-file=.env tests/maintenance.mjs"}}

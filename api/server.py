@@ -5,6 +5,7 @@ import psycopg
 from psycopg.rows import dict_row
 from inventory import SCHEMA, handle as inventory_handle
 from reports import SCHEMA as REPORT_SCHEMA, seed_history, event as ticket_event, update as update_ticket, archive as archive_ticket, handle as reports_handle
+from maintenance import SCHEMA as MAINTENANCE_SCHEMA, handle as maintenance_handle, name_link
 
 DATABASE_URL=os.getenv("DATABASE_URL")
 LEGACY_DB=os.getenv("LEGACY_DB","/legacy/tickets.db")
@@ -20,6 +21,7 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS tickets(id SERIAL PRIMARY KEY,code TEXT UNIQUE,requester TEXT NOT NULL,area TEXT NOT NULL,subject TEXT NOT NULL,category TEXT NOT NULL,priority TEXT NOT NULL,description TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Abierto',assignee TEXT DEFAULT 'Sin asignar',created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS comments(id SERIAL PRIMARY KEY,ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,author TEXT NOT NULL,body TEXT NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS attachments(id SERIAL PRIMARY KEY,ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,name TEXT NOT NULL,mime TEXT NOT NULL,data BYTEA NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW());""")
         c.execute(SCHEMA)
         c.execute(REPORT_SCHEMA)
+        c.execute(MAINTENANCE_SCHEMA)
       migrate_legacy(); sync_sequence(); seed_history(db); return
     except Exception as e: print("Esperando PostgreSQL:",e); time.sleep(2)
   raise RuntimeError("PostgreSQL no disponible")
@@ -72,6 +74,7 @@ class Handler(BaseHTTPRequestHandler):
     self.json(401,{'error':'Sesión no válida o expirada'});return False
   def do_GET(self):
     path=urlparse(self.path).path
+    if maintenance_handle(self,path,'GET',db):return
     if inventory_handle(self,path,'GET',db):return
     if reports_handle(self,path,db,serialize):return
     if path=='/api/health':return self.json(200,{'status':'ok','database':'postgresql'})
@@ -98,6 +101,7 @@ class Handler(BaseHTTPRequestHandler):
   def do_POST(self):
     path,data=urlparse(self.path).path,self.body()
     if data is None:return self.json(400,{'error':'JSON inválido'})
+    if maintenance_handle(self,path,'POST',db,data,ADMIN_USER):return
     if inventory_handle(self,path,'POST',db,data):return
     if path=='/api/auth/login':
       valid=hmac.compare_digest(str(data.get('username','')),ADMIN_USER) and hmac.compare_digest(str(data.get('password','')),ADMIN_PASSWORD)
@@ -118,7 +122,10 @@ class Handler(BaseHTTPRequestHandler):
         if len(raw)>MAX_FILE:return self.json(400,{'error':'Cada archivo debe pesar menos de 10 MB'})
         validated.append((name,mime,raw))
       with db() as c:
+        try: linked=name_link(c,data.get('device_name',''))
+        except ValueError as e:return self.json(400,{'error':str(e)})
         row=c.execute("INSERT INTO tickets(code,requester,area,subject,category,priority,description) VALUES('',%s,%s,%s,%s,%s,%s) RETURNING *",tuple(str(data[k]).strip() for k in required)).fetchone();code=f"TK-{row['id']:05d}";row=c.execute('UPDATE tickets SET code=%s WHERE id=%s RETURNING *',(code,row['id'])).fetchone()
+        row=c.execute('UPDATE tickets SET device_id=%s,device_name=%s WHERE id=%s RETURNING *',(linked['device_id'],linked['device_name'],row['id'])).fetchone()
         for name,mime,raw in validated:
           c.execute('INSERT INTO attachments(ticket_id,name,mime,data) VALUES(%s,%s,%s,%s)',(row['id'],name,mime,raw))
         ticket_event(c,row['id'],'Apertura',str(data['requester']).strip(),{'status':{'antes':None,'despues':'Abierto'}})
@@ -141,11 +148,13 @@ class Handler(BaseHTTPRequestHandler):
     path,data=urlparse(self.path).path,self.body()
     if not path.startswith('/api/admin/tickets/') or data is None:return self.json(404,{'error':'Ruta no encontrada'})
     code=path.rsplit('/',1)[-1].upper();allowed={'status','priority','assignee','category'};fields={k:str(v).strip() for k,v in data.items() if k in allowed}
+    if 'device_id' in data:fields['device_id']=data['device_id']
     if not fields:return self.json(400,{'error':'Sin cambios válidos'})
     if 'status' in fields and fields['status'] not in ('Abierto','En progreso','Cerrado'):return self.json(400,{'error':'Estado inválido'})
     if 'priority' in fields and fields['priority'] not in ('Baja','Media','Alta','Crítica'):return self.json(400,{'error':'Prioridad inválida'})
     with db() as c:
-      row=update_ticket(c,code,fields,ADMIN_USER)
+      try:row=update_ticket(c,code,fields,ADMIN_USER)
+      except ValueError as e:return self.json(400,{'error':str(e)})
       c.commit()
       return self.json(200,ticket_dict(row,c)) if row else self.json(404,{'error':'Ticket no encontrado'})
   def do_DELETE(self):
