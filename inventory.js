@@ -25,7 +25,8 @@
   dialog.id = 'deviceDialog'; dialog.className = 'inv-dialog';
   dialog.setAttribute('aria-labelledby','invDialogTitle');
   dialog.innerHTML = `<header><div><span class="eyebrow">FICHA DEL DISPOSITIVO</span><h2 id="invDialogTitle">Agregar dispositivo</h2><p>Información y acceso para el equipo de Sistemas.</p></div><button class="close-button" id="invClose" type="button" aria-label="Cerrar ficha">×</button></header>
-    <form id="invForm"><div class="inv-form-grid">
+    <div id="invDeviceSummary" hidden></div>
+    <form id="invForm"><div id="invEditableFields" class="inv-form-grid">
       <label>Nombre del dispositivo<input name="name" maxlength="200" placeholder="Ej. PC-ALMACEN-01" required></label>
       <label>Tipo de dispositivo<select name="kind" data-glide-skip><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option><option value="tablet">Tablet</option><option value="phone">Celular</option></select></label>
       <label>Área<select name="area" data-glide-skip required><option value="">Selecciona el área del equipo</option></select></label>
@@ -47,6 +48,26 @@
   document.body.append(dialog);
   const $ = selector => document.querySelector(selector);
   const form = $('#invForm');
+  const editButton=document.createElement('button');editButton.id='invEdit';editButton.type='button';editButton.className='primary-button';editButton.textContent='Editar';editButton.hidden=true;
+  form.querySelector('footer').append(editButton);
+  let editing=false;
+  function setEditing(value) {
+    editing=value;
+    $('#invEditableFields').hidden=!value;
+    $('#invDeviceSummary').hidden=value;
+    editButton.hidden=value || !selected;
+    $('#invSave').hidden=!value;
+    $('#invDelete').hidden=!value || !selected;
+    $('#invCancel').textContent=value?'Cancelar':'Cerrar';
+    $('#invFormError').hidden=true;
+  }
+  function renderDeviceSummary(device) {
+    const rows=[['Nombre',device.name],['Tipo',kinds[device.kind]],['Área',device.area],['Responsable',device.owner],['Usuario',device.username],['Contraseña',device.has_password?'Guardada y cifrada':'Sin registrar'],['Marca / modelo',device.model],['Número de serie',device.serial],['Dirección IP',device.ip_address],['Dirección MAC',device.mac_address]];
+    if(['desktop','laptop'].includes(device.kind))rows.push(['Procesador',device.processor],['Memoria RAM',device.ram]);
+    rows.push(['Último mantenimiento',dateLabel(device.last_maintenance)],['Ubicación',device.kind==='phone'?'No aplica para celulares':device.x==null?'Sin ubicación':`X: ${device.x}% · Y: ${device.y}%`],['Notas',device.notes]);
+    $('#invDeviceSummary').innerHTML='<p class="inv-muted">Modo de consulta. Selecciona Editar para modificar la información.</p><dl class="inv-summary-grid">'+rows.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value || 'Sin registrar')}</dd></div>`).join('')+'</dl>';
+  }
+  editButton.addEventListener('click',()=>{if(!selected)return;setEditing(true);field('name').focus();});
   const historyButton=document.createElement('button');historyButton.type='button';historyButton.id='invHistory';historyButton.className='secondary-button';historyButton.textContent='Historial del equipo';historyButton.hidden=true;
   form.querySelector('footer').prepend(historyButton);
   historyButton.addEventListener('click',()=>{if(selected)document.dispatchEvent(new CustomEvent('mesa:device-history',{detail:selected.id}));});
@@ -96,12 +117,14 @@
     document.dispatchEvent(new CustomEvent('mesa:device-opened',{detail:device}));
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
     $('#invPasswordHint').textContent=device?.has_password ? 'Deja este campo vacío para conservarla. Mostrar permite consultar la contraseña guardada.' : 'La contraseña se guarda cifrada y no aparece en el listado.';
-    $('#invReveal').textContent='Mostrar'; $('#invReveal').setAttribute('aria-label','Mostrar contraseña'); $('#invDelete').hidden=!device; $('#invDialogTitle').textContent=device ? device.name : 'Agregar dispositivo'; positionLabel(); dialog.showModal(); field('name').focus();
+    $('#invReveal').textContent='Mostrar'; $('#invReveal').setAttribute('aria-label','Mostrar contraseña'); $('#invDialogTitle').textContent=device ? device.name : 'Agregar dispositivo'; positionLabel();
+    if(device)renderDeviceSummary(device);
+    setEditing(!device);dialog.showModal();(device?editButton:field('name')).focus();
   }
   function closeDevice() {revealRequest++;field('password').value='';field('password').type='password';dialog.close();selected=null;opener?.focus();}
   $('#invAdd').addEventListener('click',()=>openDevice());
-  document.addEventListener('mesa:devices-changed',async()=>{if(page.hidden)return;await load();if(selected){const current=devices.find(d=>d.id===selected.id);if(current){selected=current;field('last_maintenance').value=current.last_maintenance||'';field('last_maintenance').readOnly=!!current.has_maintenance;}}});
-  $('#invClose').addEventListener('click',closeDevice);$('#invCancel').addEventListener('click',closeDevice);
+  document.addEventListener('mesa:devices-changed',async()=>{if(page.hidden)return;await load();if(selected){const current=devices.find(d=>d.id===selected.id);if(current){selected=current;if(!editing)renderDeviceSummary(current);field('last_maintenance').value=current.last_maintenance||'';field('last_maintenance').readOnly=!!current.has_maintenance;}}});
+  $('#invClose').addEventListener('click',closeDevice);$('#invCancel').addEventListener('click',()=>{if(selected && editing){const previousOpener=opener;openDevice(selected);opener=previousOpener;}else closeDevice();});
   dialog.addEventListener('cancel',e=>{e.preventDefault();closeDevice();});
   function updateComputerFields() {const kind=field('kind').value;$('#invComputerDetails').hidden=!['desktop','laptop'].includes(kind);$('#invLocationFields').hidden=kind==='phone';if(kind==='phone'){field('x').value='';field('y').value='';}positionLabel();}
   field('kind').addEventListener('change',updateComputerFields);
@@ -137,12 +160,12 @@
     if(placing && e.target.closest('#invPlan'))return;
     const target=e.target.closest('[data-device],[data-place],[data-locate]');if(!target || placing)return;
     const device=devices.find(d=>d.id===Number(target.dataset.device || target.dataset.place || target.dataset.locate));if(!device)return;
-    if(target.dataset.place) {openDevice(device);startPlacement();}
+    if(target.dataset.place) {openDevice(device);setEditing(true);startPlacement();}
     else if(target.dataset.locate) {setView('map');const marker=page.querySelector(`.inv-marker[data-device="${device.id}"]`);marker?.scrollIntoView({block:'center',inline:'center'});marker?.focus();}
     else openDevice(device);
   });
   form.addEventListener('submit',async e=>{
-    e.preventDefault();$('#invFormError').hidden=true;
+    e.preventDefault();if(!editing)return;$('#invFormError').hidden=true;
     const payload=Object.fromEntries(new FormData(form));
     payload.x=payload.x==='' ? null : Number(payload.x);payload.y=payload.y==='' ? null : Number(payload.y);
     if(payload.kind==='phone'){payload.x=null;payload.y=null;}
@@ -155,7 +178,7 @@
     finally {$('#invSave').disabled=false;$('#invSave').textContent='Guardar dispositivo';}
   });
   $('#invDelete').addEventListener('click',async()=>{
-    if(!selected || !confirm(`¿Eliminar ${selected.name} del inventario?`))return;
+    if(!editing || !selected || !confirm(`¿Eliminar ${selected.name} del inventario?`))return;
     $('#invDelete').disabled=true;
     try {await api(`/api/devices/${selected.id}`,{method:'DELETE'});devices=devices.filter(d=>d.id!==selected.id);closeDevice();render();showToast('Dispositivo eliminado','El registro fue eliminado del inventario.');}
     catch(error) {$('#invFormError').textContent=error.message;$('#invFormError').hidden=false;}
