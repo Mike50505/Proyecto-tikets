@@ -61,3 +61,9 @@ html body.mesa-tickets #inventoryPage .inv-filters .glide-select {width:185px;fl
 .inv-position-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #inventoryPage button:focus-visible,.inv-dialog button:focus-visible {outline:3px solid var(--mesa-action,#0879d9);outline-offset:3px}
 @media(max-width:800px){.inv-map-layout{grid-template-columns:1fr}.inv-map-side{border-left:0;border-top:1px solid var(--mesa-line,#ddd)}.inv-form-grid{grid-template-columns:1fr}.inv-form-grid .inv-wide{grid-column:auto}.inv-dialog{padding:20px}.inv-toolbar{padding:14px}.inv-map-main{padding:12px}.inv-filters select{flex:1}.inv-stats{gap:8px}.inv-stat{min-width:120px;padding:14px}.inv-plan-viewport{max-height:55vh}}
+
+.inv-type.printer,.inv-legend .printer{color:#087f72}
+.inv-marker.printer{background:#087f72;border-radius:5px}
+.inv-computer-fields{min-width:0;margin:0;padding:16px;border:1px solid var(--border,#dce2e8);border-radius:12px}
+.inv-computer-fields legend{padding:0 6px;font-weight:600}
+.inv-computer-fields[hidden]{display:none}

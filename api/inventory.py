@@ -1,6 +1,7 @@
 """Authenticated inventory storage. Coordinates are percentages of the supplied plan."""
 import os
 import math
+import re
 from datetime import date
 from cryptography.fernet import Fernet, InvalidToken
 from settings import active_choice
@@ -9,13 +10,20 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS devices (
  id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
  area TEXT NOT NULL, owner TEXT NOT NULL, username TEXT NOT NULL DEFAULT '',
  password_encrypted TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '',
+ mac_address TEXT NOT NULL DEFAULT '', processor TEXT NOT NULL DEFAULT '', ram TEXT NOT NULL DEFAULT '',
  model TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
  last_maintenance DATE, x DOUBLE PRECISION, y DOUBLE PRECISION,
  created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(),
- CHECK (kind IN ('desktop','laptop')),
+ CHECK (kind IN ('desktop','laptop','printer')),
  CHECK ((x IS NULL AND y IS NULL) OR (x BETWEEN 0 AND 100 AND y BETWEEN 0 AND 100))
-);"""
-FIELDS = ('name','kind','area','owner','username','serial','model','notes','last_maintenance','x','y')
+);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS mac_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS processor TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS ram TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices DROP CONSTRAINT IF EXISTS devices_kind_check;
+ALTER TABLE devices ADD CONSTRAINT devices_kind_check CHECK (kind IN ('desktop','laptop','printer'));
+"""
+FIELDS = ('name','kind','area','owner','username','serial','model','notes','mac_address','processor','ram','last_maintenance','x','y')
 
 def cipher():
     key = os.getenv('DEVICE_ENCRYPTION_KEY', '')
@@ -36,7 +44,13 @@ def validate(data):
             raise ValueError('El texto excede la longitud permitida')
     if any(not result[k] for k in ('name','area','owner')):
         raise ValueError('Completa nombre, área y responsable')
-    if result['kind'] not in ('desktop','laptop'): raise ValueError('Tipo de dispositivo inválido')
+    if result['kind'] not in ('desktop','laptop','printer'): raise ValueError('Tipo de dispositivo inválido')
+    mac = result['mac_address']
+    if mac:
+        if not re.fullmatch(r'(?:[0-9a-fA-F]{12}|(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}|(?:[0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}|(?:[0-9a-fA-F]{4}\.){2}[0-9a-fA-F]{4})', mac):
+            raise ValueError('Dirección MAC inválida. Usa el formato AA:BB:CC:DD:EE:FF')
+        compact = re.sub(r'[:.\-]', '', mac).upper()
+        result['mac_address'] = ':'.join(compact[i:i+2] for i in range(0,12,2))
     maintenance = data.get('last_maintenance') or None
     if maintenance:
         try: maintenance = date.fromisoformat(maintenance)
@@ -89,6 +103,8 @@ def handle(handler, path, method, db, data=None):
                     columns = ','.join(fields); slots = ','.join(['%s']*len(fields))
                     row = c.execute(f'INSERT INTO devices ({columns}) VALUES ({slots}) RETURNING *', list(fields.values())).fetchone()
                 else:
+                    for key in ('mac_address','processor','ram'):
+                        if key not in data: fields.pop(key, None)
                     previous=c.execute('SELECT last_maintenance,area FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
                     fields['area']=active_choice(c,'area',fields['area'],previous['area'] if previous else None)
                     if previous and previous['last_maintenance'] != fields['last_maintenance'] and c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(ident,)).fetchone():
