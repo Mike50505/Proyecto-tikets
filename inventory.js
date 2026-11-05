@@ -4,7 +4,9 @@
     laptop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="3" width="14" height="13" rx="2"/><path d="M5 16l-3 4h20l-3-4M9 20h6"/></svg>'
   };
   icons.printer = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 8V3h12v5M6 17H3V8h18v9h-3"/><path d="M6 14h12v7H6zM17 11h1"/></svg>';
-  const kinds = {desktop:'PC de escritorio', laptop:'Laptop', printer:'Impresora'};
+  icons.tablet = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/></svg>';
+  icons.phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 5h4M11 18h2"/></svg>';
+  const kinds = {desktop:'PC de escritorio', laptop:'Laptop', printer:'Impresora', tablet:'Tablet', phone:'Celular'};
   const esc = value => safe(String(value ?? '')).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const page = document.createElement('section');
   page.id = 'inventoryPage'; page.className = 'page'; page.hidden = true;
@@ -12,11 +14,11 @@
     <div class="page-heading"><div><span class="eyebrow">GESTIÓN DE ACTIVOS</span><h1>Dispositivos</h1><p>Tu inventario de TI, conectado con su ubicación en la planta.</p></div><button id="invAdd" class="primary-button">＋ Agregar dispositivo</button></div>
     <div class="inv-stats" id="invStats"></div>
     <section class="panel">
-      <div class="inv-toolbar"><div class="inv-filters"><input id="invSearch" type="search" placeholder="Buscar nombre, responsable, serie o MAC…" aria-label="Buscar dispositivos"><select id="invKind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option></select><select id="invArea" aria-label="Filtrar por área"><option value="">Todas las áreas</option></select></div><div class="inv-tabs" role="group" aria-label="Vista del inventario"><button data-inv-view="list" aria-pressed="true">Listado</button><button data-inv-view="map" aria-pressed="false">Plano</button></div></div>
+      <div class="inv-toolbar"><div class="inv-filters"><input id="invSearch" type="search" placeholder="Buscar nombre, responsable, serie, IP o MAC…" aria-label="Buscar dispositivos"><select id="invKind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option><option value="tablet">Tablet</option><option value="phone">Celular</option></select><select id="invArea" aria-label="Filtrar por área"><option value="">Todas las áreas</option></select></div><div class="inv-tabs" role="group" aria-label="Vista del inventario"><button data-inv-view="list" aria-pressed="true">Listado</button><button data-inv-view="map" aria-pressed="false">Plano</button></div></div>
       <div id="invPlaceMessage" class="inv-place-message" hidden><span></span><button id="invPlaceCancel" class="secondary-button">Cancelar ubicación</button></div>
       <p id="invLoadStatus" class="inv-empty" role="status" hidden></p>
       <div id="invList" class="inv-table-wrap"></div>
-      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><span class="inv-muted">Bodegas Ramos · Plano V.06</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span></div><p class="inv-muted">Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
+      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><span class="inv-muted">Bodegas Ramos · Plano V.06</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span><span class="tablet">${icons.tablet} Tablet</span></div><p class="inv-muted">Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
     </section>`;
   document.querySelector('#adminShell .main-content').append(page);
   const dialog = document.createElement('dialog');
@@ -25,21 +27,22 @@
   dialog.innerHTML = `<header><div><span class="eyebrow">FICHA DEL DISPOSITIVO</span><h2 id="invDialogTitle">Agregar dispositivo</h2><p>Información y acceso para el equipo de Sistemas.</p></div><button class="close-button" id="invClose" type="button" aria-label="Cerrar ficha">×</button></header>
     <form id="invForm"><div class="inv-form-grid">
       <label>Nombre del dispositivo<input name="name" maxlength="200" placeholder="Ej. PC-ALMACEN-01" required></label>
-      <label>Tipo de dispositivo<select name="kind" data-glide-skip><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option></select></label>
+      <label>Tipo de dispositivo<select name="kind" data-glide-skip><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option><option value="tablet">Tablet</option><option value="phone">Celular</option></select></label>
       <label>Área<select name="area" data-glide-skip required><option value="">Selecciona el área del equipo</option></select></label>
       <label>Responsable / asignado a<input name="owner" maxlength="200" placeholder="Nombre de la persona" required></label>
       <label>Usuario del equipo<input name="username" maxlength="200" autocomplete="off" placeholder="Ej. empresa\\usuario"></label>
       <label>Contraseña<div class="inv-password"><input name="password" type="password" maxlength="1000" autocomplete="new-password" placeholder="Opcional"><button type="button" id="invReveal" class="secondary-button" aria-label="Mostrar contraseña">Mostrar</button></div><small id="invPasswordHint" class="inv-muted"></small></label>
       <label>Marca / modelo<input name="model" maxlength="200" placeholder="Ej. Dell OptiPlex 7010"></label>
       <label>Número de serie<input name="serial" maxlength="200" placeholder="Serie del fabricante"></label>
+      <label>Dirección IP (opcional)<input name="ip_address" maxlength="45" placeholder="Ej. 192.168.1.25" spellcheck="false"><small class="inv-muted">Puedes dejarla vacía si el dispositivo no tiene IP estática.</small></label>
+      <label>Dirección MAC (opcional)<input name="mac_address" maxlength="200" placeholder="Ej. AA:BB:CC:DD:EE:FF" autocapitalize="characters" spellcheck="false"></label>
       <fieldset id="invComputerDetails" class="inv-wide inv-computer-fields"><legend>Especificaciones de la computadora (opcionales)</legend><div class="inv-form-grid">
-        <label>Dirección MAC<input name="mac_address" maxlength="200" placeholder="Ej. AA:BB:CC:DD:EE:FF" autocapitalize="characters" spellcheck="false"></label>
         <label>Procesador<input name="processor" maxlength="200" placeholder="Ej. Intel Core i5-12400"></label>
         <label>Memoria RAM<input name="ram" maxlength="200" placeholder="Ej. 16 GB DDR4"></label>
       </div></fieldset>
       <label>Último mantenimiento<input name="last_maintenance" type="date"></label>
       <label class="inv-wide">Notas<textarea name="notes" rows="3" maxlength="4000" placeholder="Especificaciones, observaciones o detalles del mantenimiento"></textarea></label>
-      <div class="inv-wide"><strong>Ubicación en el plano</strong><div class="inv-position-grid"><label>Horizontal (%)<input name="x" type="number" min="0" max="100" step="0.01" placeholder="Sin ubicación"></label><label>Vertical (%)<input name="y" type="number" min="0" max="100" step="0.01" placeholder="Sin ubicación"></label></div><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
+      <div id="invLocationFields" class="inv-wide"><strong>Ubicación en el plano</strong><div class="inv-position-grid"><label>Horizontal (%)<input name="x" type="number" min="0" max="100" step="0.01" placeholder="Sin ubicación"></label><label>Vertical (%)<input name="y" type="number" min="0" max="100" step="0.01" placeholder="Sin ubicación"></label></div><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
     </div><p id="invFormError" class="inv-error" role="alert" hidden></p><footer><button type="button" id="invDelete" class="danger-button" hidden>Eliminar dispositivo</button><button type="button" id="invCancel" class="secondary-button">Cancelar</button><button type="submit" class="primary-button" id="invSave">Guardar dispositivo</button></footer></form>`;
   document.body.append(dialog);
   const $ = selector => document.querySelector(selector);
@@ -52,22 +55,22 @@
   const localToday = () => {const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
   field('last_maintenance').max = localToday();
   const dateLabel = value => value ? new Date(value+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : 'Sin registrar';
-  const filtered = () => {const search = $('#invSearch').value.trim().toLocaleLowerCase(); return devices.filter(d => (!$('#invKind').value || d.kind === $('#invKind').value) && (!$('#invArea').value || d.area === $('#invArea').value) && [d.name,d.owner,d.area,d.serial,d.model,d.username,d.mac_address,d.processor,d.ram].join(' ').toLocaleLowerCase().includes(search));};
+  const filtered = () => {const search = $('#invSearch').value.trim().toLocaleLowerCase(); return devices.filter(d => (!$('#invKind').value || d.kind === $('#invKind').value) && (!$('#invArea').value || d.area === $('#invArea').value) && [d.name,d.owner,d.area,d.serial,d.model,d.username,d.mac_address,d.ip_address,d.processor,d.ram].join(' ').toLocaleLowerCase().includes(search));};
   function render() {
     const areas = [...new Set(devices.map(d => d.area))].sort((a,b)=>a.localeCompare(b));
     const area = $('#invArea').value;
     $('#invArea').innerHTML = '<option value="">Todas las áreas</option>'+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
     $('#invArea').value = areas.includes(area) ? area : '';
-    $('#invStats').innerHTML = [[devices.length,'Dispositivos'],[devices.filter(d=>d.kind==='desktop').length,'PC de escritorio'],[devices.filter(d=>d.kind==='laptop').length,'Laptops'],[devices.filter(d=>d.kind==='printer').length,'Impresoras'],[devices.filter(d=>d.x===null).length,'Sin ubicación']].map(([count,label])=>`<article class="inv-stat"><span>${label}</span><strong>${count}</strong></article>`).join('');
+    $('#invStats').innerHTML = [[devices.length,'Dispositivos'],[devices.filter(d=>d.kind==='desktop').length,'PC de escritorio'],[devices.filter(d=>d.kind==='laptop').length,'Laptops'],[devices.filter(d=>d.kind==='printer').length,'Impresoras'],[devices.filter(d=>d.kind==='tablet').length,'Tablets'],[devices.filter(d=>d.kind==='phone').length,'Celulares'],[devices.filter(d=>d.kind!=='phone' && d.x===null).length,'Sin ubicación']].map(([count,label])=>`<article class="inv-stat"><span>${label}</span><strong>${count}</strong></article>`).join('');
     const rows = filtered();
-    $('#invList').innerHTML = rows.length ? `<table class="inv-table"><thead><tr><th scope="col">Dispositivo</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Último mantenimiento</th><th scope="col">Ubicación</th></tr></thead><tbody>${rows.map(d=>`<tr><td><button class="inv-device-link" data-device="${d.id}">${esc(d.name)}</button><small>${esc(d.model || d.serial || 'Sin modelo registrado')}</small></td><td><span class="inv-type ${d.kind}">${icons[d.kind]}${kinds[d.kind]}</span></td><td>${esc(d.area)}</td><td>${esc(d.owner)}</td><td>${dateLabel(d.last_maintenance)}</td><td>${d.x===null ? `<button class="inv-device-link" data-place="${d.id}">Colocar en plano</button>` : `<button class="inv-device-link" data-locate="${d.id}">Ver en plano</button>`}</td></tr>`).join('')}</tbody></table>` : `<div class="inv-empty"><h3>${devices.length ? 'No encontramos dispositivos' : 'Comienza tu inventario'}</h3><p class="inv-muted">${devices.length ? 'Prueba con otros filtros.' : 'Agrega tu primer equipo y colócalo en el plano de la planta.'}</p></div>`;
+    $('#invList').innerHTML = rows.length ? `<table class="inv-table"><thead><tr><th scope="col">Dispositivo</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Último mantenimiento</th><th scope="col">Ubicación</th></tr></thead><tbody>${rows.map(d=>`<tr><td><button class="inv-device-link" data-device="${d.id}">${esc(d.name)}</button><small>${esc(d.model || d.serial || 'Sin modelo registrado')}</small></td><td><span class="inv-type ${d.kind}">${icons[d.kind]}${kinds[d.kind]}</span></td><td>${esc(d.area)}</td><td>${esc(d.owner)}</td><td>${dateLabel(d.last_maintenance)}</td><td>${d.kind==='phone' ? '<span class="inv-muted">No aplica</span>' : d.x===null ? `<button class="inv-device-link" data-place="${d.id}">Colocar en plano</button>` : `<button class="inv-device-link" data-locate="${d.id}">Ver en plano</button>`}</td></tr>`).join('')}</tbody></table>` : `<div class="inv-empty"><h3>${devices.length ? 'No encontramos dispositivos' : 'Comienza tu inventario'}</h3><p class="inv-muted">${devices.length ? 'Prueba con otros filtros.' : 'Agrega tu primer equipo y colócalo en el plano de la planta.'}</p></div>`;
     renderMarkers();
-    const unplaced = rows.filter(d=>d.x===null);
+    const unplaced = rows.filter(d=>d.kind!=='phone' && d.x===null);
     $('#invUnplaced').innerHTML = unplaced.map(d=>`<button class="inv-device-link" data-place="${d.id}">${esc(d.name)}<small class="inv-muted"> · ${esc(d.area)}</small></button>`).join('') || '<p class="inv-muted">No hay dispositivos pendientes en esta selección.</p>';
     setView(view);
   }
   function renderMarkers() {
-    $('#invMarkers').innerHTML = filtered().filter(d=>d.x!==null).map(d=>`<button class="inv-marker ${d.kind}" data-device="${d.id}" style="left:${d.x}%;top:${d.y}%" title="${esc(d.name)} · ${esc(d.area)}" aria-label="${esc(d.name)}, ${kinds[d.kind]}, ${esc(d.area)}, ${esc(d.owner)}">${icons[d.kind]}</button>`).join('');
+    $('#invMarkers').innerHTML = filtered().filter(d=>d.kind!=='phone' && d.x!==null).map(d=>`<button class="inv-marker ${d.kind}" data-device="${d.id}" style="left:${d.x}%;top:${d.y}%" title="${esc(d.name)} · ${esc(d.area)}" aria-label="${esc(d.name)}, ${kinds[d.kind]}, ${esc(d.area)}, ${esc(d.owner)}">${icons[d.kind]}</button>`).join('');
     if (placing && field('x').value !== '' && field('y').value !== '') $('#invMarkers').insertAdjacentHTML('beforeend',`<span class="inv-marker preview" style="left:${Number(field('x').value)}%;top:${Number(field('y').value)}%">${icons[field('kind').value]}</span>`);
   }
   function setView(next) {view = next; $('#invList').hidden = view !== 'list' || !loaded; $('#invMap').hidden = view !== 'map'; page.querySelectorAll('[data-inv-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.invView===view)));}
@@ -88,7 +91,7 @@
     opener = document.activeElement; revealRequest++; selected=device; dirtyPassword=false; form.reset(); $('#invFormError').hidden = true;
     field('last_maintenance').readOnly=!!device?.has_maintenance;
     field('last_maintenance').title=device?.has_maintenance?'Esta fecha se actualiza desde la agenda de mantenimiento.':'';
-    for(const name of ['name','kind','area','owner','username','serial','model','notes','mac_address','processor','ram','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
+    for(const name of ['name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
     updateComputerFields();
     document.dispatchEvent(new CustomEvent('mesa:device-opened',{detail:device}));
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
@@ -100,7 +103,7 @@
   document.addEventListener('mesa:devices-changed',async()=>{if(page.hidden)return;await load();if(selected){const current=devices.find(d=>d.id===selected.id);if(current){selected=current;field('last_maintenance').value=current.last_maintenance||'';field('last_maintenance').readOnly=!!current.has_maintenance;}}});
   $('#invClose').addEventListener('click',closeDevice);$('#invCancel').addEventListener('click',closeDevice);
   dialog.addEventListener('cancel',e=>{e.preventDefault();closeDevice();});
-  function updateComputerFields() {$('#invComputerDetails').hidden=field('kind').value==='printer';}
+  function updateComputerFields() {const kind=field('kind').value;$('#invComputerDetails').hidden=!['desktop','laptop'].includes(kind);$('#invLocationFields').hidden=kind==='phone';if(kind==='phone'){field('x').value='';field('y').value='';}positionLabel();}
   field('kind').addEventListener('change',updateComputerFields);
   field('password').addEventListener('input',()=>{dirtyPassword=true;});
   $('#invReveal').addEventListener('click',async()=>{
@@ -119,7 +122,7 @@
   });
   ['x','y'].forEach(name=>field(name).addEventListener('input',positionLabel));
   $('#invClearPosition').addEventListener('click',()=>{field('x').value='';field('y').value='';positionLabel();});
-  function startPlacement() {placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
+  function startPlacement() {if(field('kind').value==='phone')return;placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
   function stopPlacement() {placing=false;$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';renderMarkers();dialog.showModal();positionLabel();$('#invChoosePosition').focus();}
   $('#invChoosePosition').addEventListener('click',startPlacement);
   $('#invPlaceCancel').addEventListener('click',stopPlacement);
@@ -142,6 +145,7 @@
     e.preventDefault();$('#invFormError').hidden=true;
     const payload=Object.fromEntries(new FormData(form));
     payload.x=payload.x==='' ? null : Number(payload.x);payload.y=payload.y==='' ? null : Number(payload.y);
+    if(payload.kind==='phone'){payload.x=null;payload.y=null;}
     if((payload.x===null)!==(payload.y===null)) {$('#invFormError').textContent='Completa ambas coordenadas o quita la ubicación.';$('#invFormError').hidden=false;return;}
     if(selected && !dirtyPassword)delete payload.password;
     if(selected && dirtyPassword && payload.password==='')payload.password='';

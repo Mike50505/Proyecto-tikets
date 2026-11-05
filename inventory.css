@@ -67,3 +67,7 @@ html body.mesa-tickets #inventoryPage .inv-filters .glide-select {width:185px;fl
 .inv-computer-fields{min-width:0;margin:0;padding:16px;border:1px solid var(--border,#dce2e8);border-radius:12px}
 .inv-computer-fields legend{padding:0 6px;font-weight:600}
 .inv-computer-fields[hidden]{display:none}
+
+.inv-type.tablet,.inv-legend .tablet{color:#a35b08}
+.inv-type.phone{color:#496078}
+.inv-marker.tablet{background:#a35b08;border-radius:7px}

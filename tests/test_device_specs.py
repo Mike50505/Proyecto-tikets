@@ -12,10 +12,18 @@ class DeviceSpecsTests(unittest.TestCase):
         self.device = dict(name='Equipo', kind='desktop', area='Sistemas', owner='Persona')
 
     def test_optional_fields_and_printers(self):
-        for kind in ('desktop', 'laptop', 'printer'):
+        for kind in ('desktop', 'laptop', 'printer', 'tablet', 'phone'):
             result = validate({**self.device, 'kind': kind})
-            for key in ('mac_address', 'processor', 'ram'):
+            for key in ('mac_address', 'ip_address', 'processor', 'ram'):
                 self.assertEqual(result[key], '')
+
+    def test_ip_for_all_devices(self):
+        for kind in ('desktop', 'laptop', 'printer', 'tablet', 'phone'):
+            for address in ('192.168.1.25', '2001:db8::1'):
+                self.assertEqual(validate({**self.device, 'kind': kind, 'ip_address': address})['ip_address'], address)
+        for address in ('192.168.1.999', 'equipo.local', '192.168.1.25/24', 'fe80::1%eth0'):
+            with self.assertRaises(ValueError):
+                validate({**self.device, 'ip_address': address})
 
     def test_mac_formats_and_specs(self):
         for mac in ('aa:bb:cc:dd:ee:ff', 'aa-bb-cc-dd-ee-ff', 'aabb.ccdd.eeff', 'aabbccddeeff'):
@@ -23,6 +31,13 @@ class DeviceSpecsTests(unittest.TestCase):
             self.assertEqual(result['mac_address'], 'AA:BB:CC:DD:EE:FF')
             self.assertEqual(result['processor'], 'Intel Core i5')
             self.assertEqual(result['ram'], '16 GB DDR4')
+
+    def test_phones_cannot_have_map_coordinates(self):
+        result = validate({**self.device, 'kind': 'phone', 'x': 25, 'y': 40})
+        self.assertIsNone(result['x'])
+        self.assertIsNone(result['y'])
+        tablet = validate({**self.device, 'kind': 'tablet', 'x': 25, 'y': 40})
+        self.assertEqual((tablet['x'], tablet['y']), (25, 40))
 
     def test_invalid_values(self):
         for change in ({'kind': 'scanner'}, {'mac_address': 'invalid'}, {'ram': 16}, {'processor': 'x' * 201}):
