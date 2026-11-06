@@ -7,6 +7,11 @@
   icons.tablet = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/></svg>';
   icons.phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 5h4M11 18h2"/></svg>';
   const kinds = {desktop:'PC de escritorio', laptop:'Laptop', printer:'Impresora', tablet:'Tablet', phone:'Celular'};
+  const floors={'':'Piso sin asignar',ground:'Planta baja',upper:'Planta alta'};
+  // Office interiors on the source SVG (viewBox 0 0 792 612), excluding docks and stairs.
+  const officeZones=[{left:145,right:229,top:388,bottom:446},{left:379,right:468,top:388,bottom:446},{left:609,right:695,top:388,bottom:446}];
+  const inOffices=device=>device.x!=null && device.y!=null && officeZones.some(zone=>device.x*7.92>=zone.left && device.x*7.92<=zone.right && device.y*6.12>=zone.top && device.y*6.12<=zone.bottom);
+  const floorLabel=device=>inOffices(device)?floors[device.floor || '']:device.x==null?'Sin ubicación':'Área de planta · sin división por piso';
   const esc = value => safe(String(value ?? '')).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const page = document.createElement('section');
   page.id = 'inventoryPage'; page.className = 'page'; page.hidden = true;
@@ -18,7 +23,7 @@
       <div id="invPlaceMessage" class="inv-place-message" hidden><span></span><button id="invPlaceCancel" class="secondary-button">Cancelar ubicación</button></div>
       <p id="invLoadStatus" class="inv-empty" role="status" hidden></p>
       <div id="invList" class="inv-table-wrap"></div>
-      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><span class="inv-muted">Bodegas Ramos · Plano V.06</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span><span class="tablet">${icons.tablet} Tablet</span></div><p class="inv-muted">Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
+      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><label class="inv-floor-filter">Piso de oficinas<select id="invMapFloor" aria-label="Piso de las oficinas" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><span class="inv-muted">Bodegas Ramos · Plano V.06</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span><span class="tablet">${icons.tablet} Tablet</span></div><p class="inv-muted">El piso solo cambia los equipos dentro de las tres oficinas. Las demas areas permanecen visibles. Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
     </section>`;
   document.querySelector('#adminShell .main-content').append(page);
   const dialog = document.createElement('dialog');
@@ -29,7 +34,7 @@
     <form id="invForm"><div id="invEditableFields" class="inv-form-grid">
       <label>Nombre del dispositivo<input name="name" maxlength="200" placeholder="Ej. PC-ALMACEN-01" required></label>
       <label>Tipo de dispositivo<select name="kind" data-glide-skip><option value="desktop">PC de escritorio</option><option value="laptop">Laptop</option><option value="printer">Impresora</option><option value="tablet">Tablet</option><option value="phone">Celular</option></select></label>
-      <label>Área<select name="area" data-glide-skip required><option value="">Selecciona el área del equipo</option></select></label>
+      <label>Área<input name="area" list="invAreaSuggestions" maxlength="100" placeholder="Selecciona o escribe un área nueva" required autocomplete="off"><datalist id="invAreaSuggestions"></datalist><small class="inv-muted">Puedes escribir un área nueva; se agregará al guardar el dispositivo.</small></label>
       <label>Responsable / asignado a<input name="owner" maxlength="200" placeholder="Nombre de la persona" required></label>
       <label>Usuario del equipo<input name="username" maxlength="200" autocomplete="off" placeholder="Ej. empresa\\usuario"></label>
       <label>Contraseña<div class="inv-password"><input name="password" type="password" maxlength="1000" autocomplete="new-password" placeholder="Opcional"><button type="button" id="invReveal" class="secondary-button" aria-label="Mostrar contraseña">Mostrar</button></div><small id="invPasswordHint" class="inv-muted"></small></label>
@@ -43,7 +48,7 @@
       </div></fieldset>
       <label>Último mantenimiento<input name="last_maintenance" type="date"></label>
       <label class="inv-wide">Notas<textarea name="notes" rows="3" maxlength="4000" placeholder="Especificaciones, observaciones o detalles del mantenimiento"></textarea></label>
-      <div id="invLocationFields" class="inv-wide"><strong>Ubicación en el plano</strong><input name="x" type="hidden"><input name="y" type="hidden"><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
+      <div id="invLocationFields" class="inv-wide"><strong>Ubicación en el plano</strong><div class="inv-position-grid"><label>Piso (solo oficinas)<select name="floor" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><label>Oficina (opcional)<input name="office" maxlength="200" placeholder="Ej. Contabilidad"></label></div><input name="x" type="hidden"><input name="y" type="hidden"><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
     </div><p id="invFormError" class="inv-error" role="alert" hidden></p><footer><button type="button" id="invDelete" class="danger-button" hidden>Eliminar dispositivo</button><button type="button" id="invCancel" class="secondary-button">Cancelar</button><button type="submit" class="primary-button" id="invSave">Guardar dispositivo</button></footer></form>`;
   document.body.append(dialog);
   const $ = selector => document.querySelector(selector);
@@ -70,6 +75,7 @@
       `<section class="inv-detail-section"><h3>Acceso al equipo</h3><dl class="inv-summary-grid"><div><dt>Usuario</dt><dd>${esc(device.username || 'Sin registrar')}</dd></div><div><dt>Contraseña</dt><dd id="invSummaryPassword" class="inv-visible-password" role="status">${device.has_password?'Consultando…':'Sin registrar'}</dd></div></dl></section>`+
       section('Conexión de red',[['Dirección IP',device.ip_address],['Dirección MAC',device.mac_address]])+
       (['desktop','laptop'].includes(device.kind)?section('Hardware',[['Procesador',device.processor],['Memoria RAM',device.ram]]):'')+
+      (device.kind!=='phone'?section('Ubicaci\u00f3n',[['Piso',floorLabel(device)],['Oficina',device.office]]):'')+
       section('Mantenimiento',[['Último mantenimiento',dateLabel(device.last_maintenance)]])+
       (device.notes?section('Notas',[['Observaciones',device.notes]]):'');
     if(device.has_password)api(`/api/devices/${device.id}/password`).then(result=>{
@@ -87,7 +93,7 @@
   const localToday = () => {const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
   field('last_maintenance').max = localToday();
   const dateLabel = value => value ? new Date(value+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : 'Sin registrar';
-  const filtered = () => {const search = $('#invSearch').value.trim().toLocaleLowerCase(); return devices.filter(d => (!$('#invKind').value || d.kind === $('#invKind').value) && (!$('#invArea').value || d.area === $('#invArea').value) && [d.name,d.owner,d.area,d.serial,d.model,d.username,d.mac_address,d.ip_address,d.processor,d.ram].join(' ').toLocaleLowerCase().includes(search));};
+  const filtered = () => {const search = $('#invSearch').value.trim().toLocaleLowerCase(); return devices.filter(d => (!$('#invKind').value || d.kind === $('#invKind').value) && (!$('#invArea').value || d.area === $('#invArea').value) && [d.name,d.owner,d.area,d.serial,d.model,d.username,d.mac_address,d.ip_address,d.processor,d.ram,d.office,floors[d.floor || '']].join(' ').toLocaleLowerCase().includes(search));};
   function render() {
     const areas = [...new Set(devices.map(d => d.area))].sort((a,b)=>a.localeCompare(b));
     const area = $('#invArea').value;
@@ -95,14 +101,16 @@
     $('#invArea').value = areas.includes(area) ? area : '';
     $('#invStats').innerHTML = [[devices.length,'Dispositivos'],[devices.filter(d=>d.kind==='desktop').length,'PC de escritorio'],[devices.filter(d=>d.kind==='laptop').length,'Laptops'],[devices.filter(d=>d.kind==='printer').length,'Impresoras'],[devices.filter(d=>d.kind==='tablet').length,'Tablets'],[devices.filter(d=>d.kind==='phone').length,'Celulares'],[devices.filter(d=>d.kind!=='phone' && d.x===null).length,'Sin ubicación']].map(([count,label])=>`<article class="inv-stat"><span>${label}</span><strong>${count}</strong></article>`).join('');
     const rows = filtered();
-    $('#invList').innerHTML = rows.length ? `<table class="inv-table"><thead><tr><th scope="col">Dispositivo</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Último mantenimiento</th><th scope="col">Ubicación</th></tr></thead><tbody>${rows.map(d=>`<tr><td><button class="inv-device-link" data-device="${d.id}">${esc(d.name)}</button><small>${esc(d.model || d.serial || 'Sin modelo registrado')}</small></td><td><span class="inv-type ${d.kind}">${icons[d.kind]}${kinds[d.kind]}</span></td><td>${esc(d.area)}</td><td>${esc(d.owner)}</td><td>${dateLabel(d.last_maintenance)}</td><td>${d.kind==='phone' ? '<span class="inv-muted">No aplica</span>' : d.x===null ? `<button class="inv-device-link" data-place="${d.id}">Colocar en plano</button>` : `<button class="inv-device-link" data-locate="${d.id}">Ver en plano</button>`}</td></tr>`).join('')}</tbody></table>` : `<div class="inv-empty"><h3>${devices.length ? 'No encontramos dispositivos' : 'Comienza tu inventario'}</h3><p class="inv-muted">${devices.length ? 'Prueba con otros filtros.' : 'Agrega tu primer equipo y colócalo en el plano de la planta.'}</p></div>`;
+    $('#invList').innerHTML = rows.length ? `<table class="inv-table"><thead><tr><th scope="col">Dispositivo</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Último mantenimiento</th><th scope="col">Ubicación</th></tr></thead><tbody>${rows.map(d=>`<tr><td><button class="inv-device-link" data-device="${d.id}">${esc(d.name)}</button><small>${esc(d.model || d.serial || 'Sin modelo registrado')}</small></td><td><span class="inv-type ${d.kind}">${icons[d.kind]}${kinds[d.kind]}</span></td><td>${esc(d.area)}<small>${esc(d.kind==='phone'?'Sin ubicaci\u00f3n fija':floorLabel(d))}${d.office?' / '+esc(d.office):''}</small></td><td>${esc(d.owner)}</td><td>${dateLabel(d.last_maintenance)}</td><td>${d.kind==='phone' ? '<span class="inv-muted">No aplica</span>' : d.x===null ? `<button class="inv-device-link" data-place="${d.id}">Colocar en plano</button>` : `<button class="inv-device-link" data-locate="${d.id}">Ver en plano</button>`}</td></tr>`).join('')}</tbody></table>` : `<div class="inv-empty"><h3>${devices.length ? 'No encontramos dispositivos' : 'Comienza tu inventario'}</h3><p class="inv-muted">${devices.length ? 'Prueba con otros filtros.' : 'Agrega tu primer equipo y colócalo en el plano de la planta.'}</p></div>`;
     renderMarkers();
-    const unplaced = rows.filter(d=>d.kind!=='phone' && d.x===null);
+    const unplaced = mapRows().filter(d=>d.kind!=='phone' && d.x===null);
     $('#invUnplaced').innerHTML = unplaced.map(d=>`<button class="inv-device-link" data-place="${d.id}">${esc(d.name)}<small class="inv-muted"> · ${esc(d.area)}</small></button>`).join('') || '<p class="inv-muted">No hay dispositivos pendientes en esta selección.</p>';
     setView(view);
   }
+  const mapRows=()=>filtered().filter(d=>!inOffices(d) || (d.floor || '')===$('#invMapFloor').value);
+  $('#invMapFloor').addEventListener('change',render);
   function renderMarkers() {
-    $('#invMarkers').innerHTML = filtered().filter(d=>d.kind!=='phone' && d.x!==null).map(d=>`<button class="inv-marker ${d.kind}" data-device="${d.id}" style="left:${d.x}%;top:${d.y}%" title="${esc(d.name)} · ${esc(d.area)}" aria-label="${esc(d.name)}, ${kinds[d.kind]}, ${esc(d.area)}, ${esc(d.owner)}">${icons[d.kind]}</button>`).join('');
+    $('#invMarkers').innerHTML = mapRows().filter(d=>d.kind!=='phone' && d.x!==null).map(d=>`<button class="inv-marker ${d.kind}" data-device="${d.id}" style="left:${d.x}%;top:${d.y}%" title="${esc(d.name)} · ${esc(d.area)}" aria-label="${esc(d.name)}, ${kinds[d.kind]}, ${esc(d.area)}, ${esc(d.owner)}">${icons[d.kind]}</button>`).join('');
     if (placing && field('x').value !== '' && field('y').value !== '') $('#invMarkers').insertAdjacentHTML('beforeend',`<span class="inv-marker preview" style="left:${Number(field('x').value)}%;top:${Number(field('y').value)}%">${icons[field('kind').value]}</span>`);
   }
   function setView(next) {view = next; $('#invList').hidden = view !== 'list' || !loaded; $('#invMap').hidden = view !== 'map'; page.querySelectorAll('[data-inv-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.invView===view)));}
@@ -114,16 +122,21 @@
   function showInventory() {setAdminView('inventory'); window.scrollTo(0,0); load();}
   $('#inventoryNav').addEventListener('click',e=>{e.preventDefault();showInventory();});
   document.querySelectorAll('#tickets-nav .nav-item').forEach(link=>link.addEventListener('click',()=>{document.querySelectorAll('#tickets-nav .nav-item').forEach(item=>{if(item.classList.contains('active'))item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');});}));
-  document.addEventListener('mesa:view',e=>{if(e.detail!=='inventory'){summaryRequest++;$('#invDeviceSummary').replaceChildren();placing=false;selected=null;revealRequest++;form.reset();dialog.close();$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';}});
-  function clear() {summaryRequest++;$('#invDeviceSummary').replaceChildren();revealRequest++; dialog.close(); form.reset(); devices=[]; selected=null; placing=false; loaded=false; page.hidden=true; $('#dashboard').hidden=false; $('#globalSearch').closest('label').hidden=false; $('#invMarkers').innerHTML=''; $('#invList').innerHTML=''; $('#invUnplaced').innerHTML='';}
+  document.addEventListener('mesa:view',e=>{if(e.detail!=='inventory'){$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();placing=false;selected=null;revealRequest++;form.reset();dialog.close();$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';}});
+  function clear() {$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();revealRequest++; dialog.close(); form.reset(); devices=[]; selected=null; placing=false; loaded=false; page.hidden=true; $('#dashboard').hidden=false; $('#globalSearch').closest('label').hidden=false; $('#invMarkers').innerHTML=''; $('#invList').innerHTML=''; $('#invUnplaced').innerHTML='';}
   new MutationObserver(()=>{if($('#adminShell').hidden) clear();}).observe($('#adminShell'),{attributes:true,attributeFilter:['hidden']});
-  function positionLabel() {$('#invPositionLabel').textContent=field('x').value==='' || field('y').value==='' ? 'Sin ubicaci\u00f3n' : 'Ubicado en el plano';}
+  function formLocation() {return {x:field('x').value===''?null:Number(field('x').value),y:field('y').value===''?null:Number(field('y').value)};}
+  function positionLabel() {
+    const location=formLocation(),office=inOffices(location);
+    field('floor').disabled=!office;
+    $('#invPositionLabel').textContent=location.x==null?'Coloca el dispositivo en el plano. El piso se habilita dentro de las oficinas.':office?'Ubicado en oficinas':'Ubicado en planta. No aplica piso.';
+  }
   function openDevice(device=null) {
     historyButton.hidden=!device;
     opener = document.activeElement; revealRequest++; selected=device; dirtyPassword=false; form.reset(); $('#invFormError').hidden = true;
     field('last_maintenance').readOnly=!!device?.has_maintenance;
     field('last_maintenance').title=device?.has_maintenance?'Esta fecha se actualiza desde la agenda de mantenimiento.':'';
-    for(const name of ['name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
+    for(const name of ['name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','floor','office','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
     updateComputerFields();
     document.dispatchEvent(new CustomEvent('mesa:device-opened',{detail:device}));
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
@@ -156,8 +169,8 @@
   });
   ['x','y'].forEach(name=>field(name).addEventListener('input',positionLabel));
   $('#invClearPosition').addEventListener('click',()=>{field('x').value='';field('y').value='';positionLabel();});
-  function startPlacement() {if(field('kind').value==='phone')return;placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
-  function stopPlacement() {placing=false;$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';renderMarkers();dialog.showModal();positionLabel();$('#invChoosePosition').focus();}
+  function startPlacement() {if(field('kind').value==='phone')return;if(inOffices(formLocation()))$('#invMapFloor').value=field('floor').value;$('#invMapFloor').disabled=true;placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');render();$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
+  function stopPlacement() {placing=false;$('#invMapFloor').disabled=false;$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';renderMarkers();dialog.showModal();positionLabel();$('#invChoosePosition').focus();}
   $('#invChoosePosition').addEventListener('click',startPlacement);
   $('#invPlaceCancel').addEventListener('click',stopPlacement);
   document.addEventListener('keydown',e=>{if(e.key==='Escape' && placing)stopPlacement();});
@@ -165,20 +178,24 @@
     if(!placing)return;
     e.preventDefault();e.stopPropagation();const rect=$('#invPlan').getBoundingClientRect();
     field('x').value=(Math.min(100,Math.max(0,(e.clientX-rect.left)/rect.width*100))).toFixed(2);
-    field('y').value=(Math.min(100,Math.max(0,(e.clientY-rect.top)/rect.height*100))).toFixed(2);stopPlacement();
+    field('y').value=(Math.min(100,Math.max(0,(e.clientY-rect.top)/rect.height*100))).toFixed(2);
+    if(!inOffices(formLocation()))field('floor').value='';
+    else if(!field('floor').value)field('floor').value=$('#invMapFloor').value;
+    stopPlacement();
   });
   page.addEventListener('click',e=>{
     if(placing && e.target.closest('#invPlan'))return;
     const target=e.target.closest('[data-device],[data-place],[data-locate]');if(!target || placing)return;
     const device=devices.find(d=>d.id===Number(target.dataset.device || target.dataset.place || target.dataset.locate));if(!device)return;
     if(target.dataset.place) {openDevice(device);setEditing(true);startPlacement();}
-    else if(target.dataset.locate) {setView('map');const marker=page.querySelector(`.inv-marker[data-device="${device.id}"]`);marker?.scrollIntoView({block:'center',inline:'center'});marker?.focus();}
+    else if(target.dataset.locate) {$('#invMapFloor').value=device.floor || '';setView('map');render();const marker=page.querySelector(`.inv-marker[data-device="${device.id}"]`);marker?.scrollIntoView({block:'center',inline:'center'});marker?.focus();}
     else openDevice(device);
   });
   form.addEventListener('submit',async e=>{
     e.preventDefault();if(!editing)return;$('#invFormError').hidden=true;
     const payload=Object.fromEntries(new FormData(form));
     payload.x=payload.x==='' ? null : Number(payload.x);payload.y=payload.y==='' ? null : Number(payload.y);
+    if(!inOffices(payload))payload.floor='';
     if(payload.kind==='phone'){payload.x=null;payload.y=null;}
     if((payload.x===null)!==(payload.y===null)) {$('#invFormError').textContent='Completa ambas coordenadas o quita la ubicación.';$('#invFormError').hidden=false;return;}
     if(selected && !dirtyPassword)delete payload.password;

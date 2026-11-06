@@ -15,6 +15,11 @@
   [categorySelect,areaSelect,$('#categoryFilter')].forEach(select=>select.setAttribute('data-glide-skip',''));
   const formStatus=document.createElement('p');formStatus.id='ticketConfigStatus';formStatus.setAttribute('role','status');$('#ticketForm').prepend(formStatus);
   function fillSelect(select,items,value,{historical=false,defaultCategory=false,placeholder='Selecciona una opción'}={}) {
+    if(select===deviceArea && select.tagName==='INPUT') {
+      $('#invAreaSuggestions').innerHTML=items.map(item=>`<option value="${esc(item.name)}"></option>`).join('');
+      if(value!==undefined)select.value=value;
+      return;
+    }
     const names=items.map(item=>item.name);const old=value??select.value;
     const retained=historical && old && !names.includes(old);
     select.innerHTML=`<option value="">${placeholder}</option>`+(retained?`<option value="${esc(old)}">${esc(old)} · registro anterior</option>`:'')+names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');

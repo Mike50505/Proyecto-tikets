@@ -39,6 +39,17 @@ class DeviceSpecsTests(unittest.TestCase):
         tablet = validate({**self.device, 'kind': 'tablet', 'x': 25, 'y': 40})
         self.assertEqual((tablet['x'], tablet['y']), (25, 40))
 
+    def test_optional_floor_and_office(self):
+        self.assertEqual(validate(self.device)['floor'], '')
+        self.assertEqual(validate(self.device)['office'], '')
+        for floor in ('ground', 'upper'):
+            result = validate({**self.device, 'floor': floor, 'office': ' Contabilidad '})
+            self.assertEqual(result['floor'], floor)
+            self.assertEqual(result['office'], 'Contabilidad')
+        for change in ({'floor': 'invalid'}, {'floor': 1}, {'office': 'x' * 201}):
+            with self.assertRaises(ValueError):
+                validate({**self.device, **change})
+
     def test_invalid_values(self):
         for change in ({'kind': 'scanner'}, {'mac_address': 'invalid'}, {'ram': 16}, {'processor': 'x' * 201}):
             with self.assertRaises(ValueError):

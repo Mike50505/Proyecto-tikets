@@ -5,7 +5,7 @@ import re
 from ipaddress import ip_address
 from datetime import date
 from cryptography.fernet import Fernet, InvalidToken
-from settings import active_choice
+from settings import active_choice, text
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS devices (
  id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
@@ -22,12 +22,16 @@ ALTER TABLE devices ADD COLUMN IF NOT EXISTS mac_address TEXT NOT NULL DEFAULT '
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS processor TEXT NOT NULL DEFAULT '';
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS ram TEXT NOT NULL DEFAULT '';
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS floor TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS office TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices DROP CONSTRAINT IF EXISTS devices_floor_check;
+ALTER TABLE devices ADD CONSTRAINT devices_floor_check CHECK (floor IN ('','ground','upper'));
 ALTER TABLE devices DROP CONSTRAINT IF EXISTS devices_phone_location_check;
 ALTER TABLE devices ADD CONSTRAINT devices_phone_location_check CHECK (kind <> 'phone' OR (x IS NULL AND y IS NULL));
 ALTER TABLE devices DROP CONSTRAINT IF EXISTS devices_kind_check;
 ALTER TABLE devices ADD CONSTRAINT devices_kind_check CHECK (kind IN ('desktop','laptop','printer','tablet','phone'));
 """
-FIELDS = ('name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','last_maintenance','x','y')
+FIELDS = ('name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','floor','office','last_maintenance','x','y')
 
 def cipher():
     key = os.getenv('DEVICE_ENCRYPTION_KEY', '')
@@ -49,6 +53,7 @@ def validate(data):
     if any(not result[k] for k in ('name','area','owner')):
         raise ValueError('Completa nombre, área y responsable')
     if result['kind'] not in ('desktop','laptop','printer','tablet','phone'): raise ValueError('Tipo de dispositivo inválido')
+    if result['floor'] not in ('','ground','upper'): raise ValueError('Piso inválido')
     if result['ip_address']:
         try:
             if '%' in result['ip_address']: raise ValueError()
@@ -88,6 +93,12 @@ def public(row,c=None):
     return {**{k: v.isoformat() if hasattr(v, 'isoformat') else v for k,v in row.items() if k != 'password_encrypted'},
             'has_password': bool(row['password_encrypted'])}
 
+def device_area(c, value, previous=None):
+    value=text(value,'Área',100)
+    if previous is not None and value==previous: return previous
+    c.execute("INSERT INTO config_catalog(kind,name) VALUES('area',%s) ON CONFLICT DO NOTHING",(value,))
+    return active_choice(c,'area',value,previous)
+
 def handle(handler, path, method, db, data=None):
     if not (path == '/api/devices' or path.startswith('/api/devices/')): return False
     if not handler.admin(): return True
@@ -109,14 +120,14 @@ def handle(handler, path, method, db, data=None):
             elif method in ('POST','PATCH') and ((method == 'POST' and len(parts) == 2) or (method == 'PATCH' and len(parts) == 3)):
                 fields = validate(data)
                 if method == 'POST':
-                    fields['area']=active_choice(c,'area',fields['area'])
+                    fields['area']=device_area(c,fields['area'])
                     columns = ','.join(fields); slots = ','.join(['%s']*len(fields))
                     row = c.execute(f'INSERT INTO devices ({columns}) VALUES ({slots}) RETURNING *', list(fields.values())).fetchone()
                 else:
-                    for key in ('mac_address','ip_address','processor','ram'):
+                    for key in ('mac_address','ip_address','processor','ram','floor','office'):
                         if key not in data: fields.pop(key, None)
                     previous=c.execute('SELECT last_maintenance,area FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
-                    fields['area']=active_choice(c,'area',fields['area'],previous['area'] if previous else None)
+                    fields['area']=device_area(c,fields['area'],previous['area'] if previous else None)
                     if previous and previous['last_maintenance'] != fields['last_maintenance'] and c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(ident,)).fetchone():
                         raise ValueError('El equipo tiene mantenimientos registrados. Usa la agenda para registrar otro mantenimiento.')
                     sets = ','.join(f'{k}=%s' for k in fields)

@@ -90,3 +90,5 @@ html body.mesa-tickets #inventoryPage .inv-filters .glide-select {width:185px;fl
 .inv-detail-section .inv-summary-grid div{border:0;padding:0}
 .inv-detail-section dd{font-size:14px}
 .inv-visible-password{font-family:ui-monospace,Consolas,monospace;font-weight:600;user-select:text}
+
+.inv-floor-filter{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}.inv-floor-filter select{min-width:160px}.inv-map-controls{flex-wrap:wrap}
