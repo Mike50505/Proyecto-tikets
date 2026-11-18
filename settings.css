@@ -1,5 +1,13 @@
 #settingsPage [hidden],#catalogDialog [hidden] {display:none!important}
 #adminShell[hidden],#publicPortal[hidden] {display:none!important}
+#accountDialog [hidden],#accountsAdmin[hidden] {display:none!important}
+#accountDialog {padding:24px;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto}
+#accountDialog header,#accountDialog footer {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+#accountDialog footer {margin:24px 0 0;flex-wrap:wrap}
+#accountDialog .settings-fields {grid-template-columns:1fr}
+#lookupForm {flex-wrap:wrap;gap:10px}
+#lookupForm input {min-width:0;flex:1 1 180px}
+@media(max-width:620px){#lookupForm {display:flex;flex-direction:column}#lookupForm input,#lookupForm button {width:100%;flex:auto}}
 .settings-panel {padding:24px;margin-bottom:24px}.settings-panel h2 {font-size:18px;margin:0 0 8px}
 .settings-note {font-size:13px;color:var(--mesa-muted,#64748b);line-height:1.6;margin:8px 0 20px}
 .settings-fields {display:grid;grid-template-columns:1fr 1fr;gap:18px}.settings-fields .wide {grid-column:1/-1}

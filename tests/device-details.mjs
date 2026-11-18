@@ -1,0 +1,58 @@
+import {ensureIsolated,launchBrowser,base} from './helpers.mjs';
+import assert from 'node:assert/strict';
+
+await ensureIsolated();
+const browser=await launchBrowser();
+const context=await browser.newContext({viewport:{width:1280,height:900}});
+const page=await context.newPage();
+page.setDefaultTimeout(12000);
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+const login=await context.request.post(base+'/api/auth/login',{data:{username:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD}});
+assert.equal(login.status(),200);
+const {token}=await login.json();
+const headers={Authorization:`Bearer ${token}`};
+let id;
+try {
+  const name=`DETAILS-${Date.now()}`;
+  const response=await context.request.post(base+'/api/devices',{headers,data:{name,kind:'phone',area:'Sistemas',owner:'Responsable original',password:'Only-isolated-test!',ip_address:'192.168.1.25'}});
+  assert.equal(response.status(),201);id=(await response.json()).id;
+  await page.goto(base,{waitUntil:'networkidle',timeout:20000});
+  await page.evaluate(value=>sessionStorage.setItem('mesaTiToken',value),token);
+  await page.getByRole('button',{name:/Acceso de TI/}).click();
+  await page.locator('#inventoryNav').click();
+  await page.locator(`#invList [data-device="${id}"]`).click();
+  const summary=page.locator('#invDeviceSummary');
+  assert.equal(await summary.isVisible(),true);
+  await page.waitForFunction(()=>document.querySelector('#invSummaryPassword')?.textContent==='Only-isolated-test!');
+  assert.equal(await page.locator('#invForm [name=x]').isVisible(),false);
+  assert.equal(await page.locator('#invForm [name=y]').isVisible(),false);
+  assert.ok((await summary.innerText()).includes('192.168.1.25'));
+  assert.equal(await page.locator('#invEditableFields').isVisible(),false);
+  assert.equal(await page.locator('#invSave').isVisible(),false);
+  assert.equal(await page.locator('#invDelete').isVisible(),false);
+  await page.locator('#invEdit').click();
+  assert.equal(await page.locator('#invEditableFields').isVisible(),true);
+  assert.equal(await page.locator('#invLocationFields').isVisible(),false);
+  await page.locator('#invForm [name=owner]').fill('Cambio descartado');
+  await page.locator('#invCancel').click();
+  assert.equal(await summary.isVisible(),true);
+  assert.ok((await summary.innerText()).includes('Responsable original'));
+  await page.locator('#invEdit').click();
+  await page.locator('#invForm [name=owner]').fill('Responsable actualizado');
+  await page.locator('#invForm [name=area]').fill('Nueva area '+name);
+  await page.locator('#invSave').click();
+  await page.locator('#deviceDialog').waitFor({state:'hidden'});
+  await page.locator(`#invList [data-device="${id}"]`).click();
+  assert.ok((await summary.innerText()).includes('Responsable actualizado'));
+  assert.ok((await summary.innerText()).includes('Nueva area '+name));
+  assert.equal(await page.locator('#invSave').isVisible(),false);
+  await page.locator('#invCancel').click();
+  await page.locator('#invAdd').click();
+  assert.equal(await page.locator('#invSave').isVisible(),true);
+  assert.equal(await page.locator('#invEdit').isVisible(),false);
+  assert.deepEqual(errors,[]);
+  console.log('Consulta, edición, cancelar cambios, guardar y volver a consultar: OK');
+} finally {
+  if(id)await context.request.delete(base+`/api/devices/${id}`,{headers});
+  await browser.close();
+}

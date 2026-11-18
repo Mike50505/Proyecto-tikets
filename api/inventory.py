@@ -6,6 +6,7 @@ from ipaddress import ip_address
 from datetime import date
 from cryptography.fernet import Fernet, InvalidToken
 from settings import active_choice, text
+from plant_plan import validate_device, read as read_plan
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS devices (
  id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
@@ -53,7 +54,7 @@ def validate(data):
     if any(not result[k] for k in ('name','area','owner')):
         raise ValueError('Completa nombre, área y responsable')
     if result['kind'] not in ('desktop','laptop','printer','tablet','phone'): raise ValueError('Tipo de dispositivo inválido')
-    if result['floor'] not in ('','ground','upper'): raise ValueError('Piso inválido')
+    if result['floor'] and not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}',result['floor']): raise ValueError('Piso inválido')
     if result['ip_address']:
         try:
             if '%' in result['ip_address']: raise ValueError()
@@ -119,14 +120,19 @@ def handle(handler, path, method, db, data=None):
                     handler.json(200, {'password':value})
             elif method in ('POST','PATCH') and ((method == 'POST' and len(parts) == 2) or (method == 'PATCH' and len(parts) == 3)):
                 fields = validate(data)
+                read_plan(c)  # Serialize device writes with a plan replacement.
+                previous=None
+                if method=='PATCH':
+                    previous=c.execute('SELECT last_maintenance,area,floor FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
+                    if previous and 'floor' not in data:fields['floor']=previous['floor']
+                validate_device(c,fields)
                 if method == 'POST':
                     fields['area']=device_area(c,fields['area'])
                     columns = ','.join(fields); slots = ','.join(['%s']*len(fields))
                     row = c.execute(f'INSERT INTO devices ({columns}) VALUES ({slots}) RETURNING *', list(fields.values())).fetchone()
                 else:
-                    for key in ('mac_address','ip_address','processor','ram','floor','office'):
+                    for key in ('mac_address','ip_address','processor','ram','office'):
                         if key not in data: fields.pop(key, None)
-                    previous=c.execute('SELECT last_maintenance,area FROM devices WHERE id=%s FOR UPDATE',(ident,)).fetchone()
                     fields['area']=device_area(c,fields['area'],previous['area'] if previous else None)
                     if previous and previous['last_maintenance'] != fields['last_maintenance'] and c.execute('SELECT 1 FROM device_maintenance WHERE device_id=%s LIMIT 1',(ident,)).fetchone():
                         raise ValueError('El equipo tiene mantenimientos registrados. Usa la agenda para registrar otro mantenimiento.')

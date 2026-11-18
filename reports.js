@@ -29,54 +29,41 @@
   document.body.append(dialog);
   const $=s=>document.querySelector(s);
   let records=[],filtered=[],number=1,detail=null,requestVersion=0,detailVersion=0,opener=null;
-  const size=25;
+  const size=25;let reportData=null,printRows=null,filterTimer;
   const ids=['reportBasis','reportFrom','reportTo','reportStatus','reportArea','reportCategory','reportPriority','reportArchive','reportSearch'];
-  function buildOptions(id, field) {const value=$('#'+id).value;const label=field==='area'?'Todas las áreas':'Todas las categorías';$('#'+id).innerHTML=`<option value="">${label}</option>`+[...new Set(records.map(t=>t[field]))].sort((a,b)=>a.localeCompare(b)).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');$('#'+id).value=value;}
+  function buildOptions(id,field){const value=$('#'+id).value,label=field==='area'?'Todas las áreas':'Todas las categorías';const options=reportData[field==='area'?'areas':'categories'];$('#'+id).innerHTML=`<option value="">${label}</option>`+options.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');$('#'+id).value=value;}
+  function parameters(){return new URLSearchParams({basis:$('#reportBasis').value,from:$('#reportFrom').value,to:$('#reportTo').value,status:$('#reportStatus').value,area:$('#reportArea').value,category:$('#reportCategory').value,priority:$('#reportPriority').value,archive:$('#reportArchive').value,search:$('#reportSearch').value,page:String(number),page_size:String(size)});}
+
   function scope() {return `${$('#reportBasis').value==='closed_at'?'Último cierre':'Apertura'}: ${$('#reportFrom').value||'inicio'} a ${$('#reportTo').value||'hoy'} · ${$('#reportStatus').value||'todos los estados'} · ${$('#reportArea').value||'todas las áreas'} · ${$('#reportCategory').value||'todas las categorías'} · ${$('#reportPriority').value||'todas las prioridades'} · ${$('#reportArchive').selectedOptions[0].textContent}${$('#reportSearch').value ? ' · búsqueda: '+$('#reportSearch').value : ''} · hora de Ciudad de México`;}
-  function applyFilters() {
-    const from=$('#reportFrom').value,to=$('#reportTo').value,basis=$('#reportBasis').value,search=$('#reportSearch').value.trim().toLocaleLowerCase();
-    $('#reportError').hidden=true;
-    if(from && to && from>to) {$('#reportError').textContent='La fecha Desde debe ser anterior o igual a Hasta.';$('#reportError').hidden=false;filtered=[];}
-    else filtered=records.filter(t=>{
-      const date=day(t[basis]);
-      return (basis!=='closed_at' || !!t.closed_at) && (!from || date>=from) && (!to || date<=to) &&
-        (!$('#reportStatus').value || t.status===$('#reportStatus').value) && (!$('#reportArea').value || t.area===$('#reportArea').value) &&
-        (!$('#reportCategory').value || t.category===$('#reportCategory').value) && (!$('#reportPriority').value || t.priority===$('#reportPriority').value) &&
-        (!$('#reportArchive').value || ($('#reportArchive').value==='archived' ? !!t.deleted_at : !t.deleted_at)) &&
-        [t.code,t.subject,t.requester,t.assignee,t.description,t.device_name].join(' ').toLocaleLowerCase().includes(search);
-    });
-    $('#reportScope').textContent=scope();number=1;render();
+  function applyFilters(){number=1;return load();}
+  function breakdown(field,id){
+    const groups=reportData.breakdowns[field],max=Number(groups[0]?.count)||1;
+    $('#'+id).innerHTML=groups.map(({label,count})=>`<div class="report-bar-row"><div class="report-bar-label"><span>${esc(label)}</span><strong>${count}</strong></div><div class="report-bar-track" aria-hidden="true"><i style="width:${Number(count)/max*100}%"></i></div></div>`).join('')||'<p class="report-note">Sin datos para estos filtros.</p>';
   }
-  function breakdown(field,id) {
-    const counts=new Map();filtered.forEach(t=>counts.set(t[field],(counts.get(t[field])||0)+1));
-    const groups=[...counts].sort((a,b)=>b[1]-a[1]);const max=groups[0]?.[1]||1;
-    $('#'+id).innerHTML=groups.map(([label,count])=>`<div class="report-bar-row"><div class="report-bar-label"><span>${esc(label)}</span><strong>${count}</strong></div><div class="report-bar-track" aria-hidden="true"><i style="width:${count/max*100}%"></i></div></div>`).join('')||'<p class="report-note">Sin datos para estos filtros.</p>';
-  }
-  function render() {
-    const measured=filtered.map(hours).filter(h=>h!==null);
-    const stats=[[filtered.length,'Tickets en la selección',`${filtered.filter(t=>t.deleted_at).length} archivados incluidos`],...['Abierto','En progreso','Cerrado'].map(status=>[filtered.filter(t=>t.status===status).length,{'Abierto':'Abiertos','En progreso':'En progreso','Cerrado':'Cerrados'}[status],'Estado actual']),[duration(measured.length?measured.reduce((a,b)=>a+b,0)/measured.length:null),'Tiempo promedio al cierre',`${measured.length} cierres con fecha registrada`]];
+  function render(){
+    const d=reportData.summary;
+    const stats=[[d.total,'Tickets en la selección',`${d.archived} archivados incluidos`],[d.opened,'Abiertos','Estado actual'],[d.progress,'En progreso','Estado actual'],[d.closed,'Cerrados','Estado actual'],[duration(d.average_hours),'Tiempo promedio al cierre',`${d.measured} cierres con fecha registrada`]];
     $('#reportStats').innerHTML=stats.map(([value,label,note])=>`<article class="report-stat"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`).join('');
     breakdown('area','reportByArea');breakdown('category','reportByCategory');
-    $('#reportCount').textContent=`${filtered.length} tickets · selecciona un folio para ver su historial`;
-    $('#reportExport').disabled=filtered.length===0;$('#reportPrint').disabled=filtered.length===0;
-    renderTable();
+    $('#reportCount').textContent=`${reportData.total} tickets · selecciona un folio para ver su historial`;
+    $('#reportExport').disabled=reportData.total===0;$('#reportPrint').disabled=reportData.total===0;renderTable();
   }
   function renderTable(all=false) {
-    const rows=all?filtered:filtered.slice((number-1)*size,number*size);
+    const rows=all?printRows:filtered;
     $('#reportTable').innerHTML=rows.length?`<table class="report-table"><thead><tr>${['Folio / asunto','Solicitante / área','Categoría / prioridad','Estado / responsable','Apertura','Último cierre','Tiempo al cierre'].map(label=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.map(t=>`<tr><td class="report-subject"><button class="report-link" data-report-code="${esc(t.code)}">${esc(t.code)}</button><small>${esc(t.subject)}</small>${t.device_name?`<small>Equipo: ${esc(t.device_name)}</small>`:""}${t.deleted_at?'<small>Archivado · '+stamp(t.deleted_at)+'</small>':''}</td><td>${esc(t.requester)}<small>${esc(t.area)}</small></td><td>${esc(t.category)}<small>${esc(t.priority)}</small></td><td><span class="badge ${statusClass(t.status)}">${esc(t.status)}</span><small>${esc(t.assignee||'Sin asignar')}</small></td><td class="report-date">${stamp(t.created_at)}</td><td class="report-date">${t.closed_at?stamp(t.closed_at):t.status==='Cerrado'?'Fecha no registrada':'—'}</td><td>${duration(hours(t))}</td></tr>`).join('')}</tbody></table>`:'<div class="report-empty">No hay tickets que coincidan con estos filtros.</div>';
-    $('#reportPrev').disabled=number<=1;$('#reportNext').disabled=number*size>=filtered.length;$('#reportPageLabel').textContent=`Página ${number} de ${Math.max(1,Math.ceil(filtered.length/size))}`;
+    $('#reportPrev').disabled=number<=1;$('#reportNext').disabled=number*size>=reportData.total;$('#reportPageLabel').textContent=`Página ${number} de ${Math.max(1,Math.ceil(reportData.total/size))}`;
   }
   async function load() {
     const version=++requestVersion;$('#reportLoadStatus').hidden=false;$('#reportLoadStatus').textContent='Cargando historial…';$('#reportError').hidden=true;$('#reportContent').hidden=true;$('#reportExport').disabled=true;$('#reportPrint').disabled=true;
-    try {const data=await api('/api/reports/tickets');if(version!==requestVersion)return;records=data;buildOptions('reportArea','area');buildOptions('reportCategory','category');applyFilters();$('#reportContent').hidden=false;}
+    try {const data=await api('/api/reports/tickets?'+parameters());if(version!==requestVersion)return;reportData=data;records=data.items;filtered=data.items;number=data.page;buildOptions('reportArea','area');buildOptions('reportCategory','category');$('#reportScope').textContent=scope();render();$('#reportContent').hidden=false;}
     catch(error) {if(version!==requestVersion)return;records=[];$('#reportError').textContent=error.message;$('#reportError').hidden=false;if(error.message.includes('Sesión'))showPublic();}
     finally {if(version===requestVersion)$('#reportLoadStatus').hidden=true;}
   }
   $('#reportsNav').addEventListener('click',e=>{e.preventDefault();setAdminView('reports');window.scrollTo(0,0);load();});
   $('#reportRefresh').addEventListener('click',load);
-  ids.forEach(id=>$('#'+id).addEventListener(id==='reportSearch'?'input':'change',applyFilters));
+  ids.forEach(id=>$('#'+id).addEventListener(id==='reportSearch'?'input':'change',()=>{clearTimeout(filterTimer);if(id==='reportSearch')filterTimer=setTimeout(applyFilters,250);else applyFilters();}));
   $('#reportReset').addEventListener('click',()=>{ids.forEach(id=>$('#'+id).value=id==='reportBasis'?'created_at':'');applyFilters();});
-  $('#reportPrev').addEventListener('click',()=>{number--;renderTable();});$('#reportNext').addEventListener('click',()=>{number++;renderTable();});
+  $('#reportPrev').addEventListener('click',()=>{number--;load();});$('#reportNext').addEventListener('click',()=>{number++;load();});
   function changeText(changes) {
     const labels={status:'Estado',priority:'Prioridad',category:'Categoría',assignee:'Responsable',device_name:'Equipo'};
     return Object.entries(changes).filter(([field])=>field!=='device_id').map(([field,value])=>value && typeof value==='object'?`${labels[field]||field}: ${value.antes??'—'} → ${value.despues??'—'}`:field==='comentario'?'Comentario registrado':String(value)).join('\n');
@@ -104,10 +91,21 @@
   $('#reportClose').addEventListener('click',closeHistory);$('#reportDone').addEventListener('click',closeHistory);dialog.addEventListener('cancel',e=>{e.preventDefault();closeHistory();});
   function csvCell(value) {let text=String(value??'');if(/^[\s]*[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
   function downloadCSV(name,rows) {const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-  $('#reportExport').addEventListener('click',()=>downloadCSV(`mesa-ti-tickets-${day(new Date())}.csv`,[['Folio','Equipo relacionado','Asunto','Descripción','Solicitante','Área','Categoría','Prioridad','Estado actual','Responsable','Apertura (CDMX)','Último cierre (CDMX)','Tiempo al cierre (horas)','Última actualización (CDMX)','Archivado (CDMX)'],...filtered.map(t=>[t.code,t.device_name,t.subject,t.description,t.requester,t.area,t.category,t.priority,t.status,t.assignee,stamp(t.created_at),t.closed_at?stamp(t.closed_at):t.status==='Cerrado'?'Fecha no registrada':'',hours(t)===null?'':hours(t).toFixed(2),stamp(t.updated_at),t.deleted_at?stamp(t.deleted_at):''])]));
+  $('#reportExport').addEventListener('click',async()=>{const button=$('#reportExport');button.disabled=true;try{await downloadFile('/api/reports/tickets/export?'+parameters(),`mesa-ti-tickets-${day(new Date())}.csv`);}catch(error){showToast('No se pudo exportar',error.message);}finally{button.disabled=!reportData?.total;}});
   $('#reportHistoryExport').addEventListener('click',()=>{if(!detail)return;const movements=[...detail.events.filter(e=>e.action!=='Comentario').map(e=>({date:e.created_at,action:e.action,actor:e.actor,text:changeText(e.changes)})),...detail.comments.map(c=>({date:c.created_at,action:'Comentario',actor:c.author,text:c.body}))].sort((a,b)=>new Date(a.date)-new Date(b.date));downloadCSV(`${detail.code}-historial.csv`,[['Folio','Fecha (CDMX)','Movimiento','Autor','Detalle'],...movements.map(e=>[detail.code,stamp(e.date),e.action,e.actor,e.text])]);});
-  function print(detailOnly=false) {if(!detailOnly){renderTable(true);$('#reportPrintMeta').textContent=`Generado: ${stamp(new Date())}\n${scope()}\n${filtered.length} tickets`;}document.body.classList.add('report-print');document.body.classList.toggle('report-print-detail',detailOnly);window.print();}
-  window.addEventListener('afterprint',()=>{document.body.classList.remove('report-print','report-print-detail');renderTable();});
+  async function print(detailOnly=false){
+    const version=requestVersion;
+    try{
+      if(!detailOnly){
+        $('#reportPrint').disabled=true;const params=parameters();params.set('page_size','100');params.set('page','1');
+        const first=await api('/api/reports/tickets?'+params);printRows=[...first.items];
+        for(let next=2;(next-1)*100<first.total;next++){params.set('page',String(next));const part=await api('/api/reports/tickets?'+params);if(version!==requestVersion)return;printRows.push(...part.items);}
+        if(version!==requestVersion)return;renderTable(true);$('#reportPrintMeta').textContent=`Generado: ${stamp(new Date())}\n${scope()}\n${printRows.length} tickets`;
+      }
+      document.body.classList.add('report-print');document.body.classList.toggle('report-print-detail',detailOnly);window.print();
+    }catch(error){showToast('No se pudo imprimir',error.message);}finally{$('#reportPrint').disabled=!reportData?.total;}
+  }
+  window.addEventListener('afterprint',()=>{document.body.classList.remove('report-print','report-print-detail');printRows=null;if(reportData)renderTable();});
   $('#reportPrint').addEventListener('click',()=>print());$('#reportDetailPrint').addEventListener('click',()=>print(true));
   document.addEventListener('mesa:view',e=>{if(e.detail!=='reports'){requestVersion++;if(dialog.open)closeHistory();}});
   new MutationObserver(()=>{if($('#adminShell').hidden){requestVersion++;detailVersion++;dialog.close();detail=null;records=[];filtered=[];page.hidden=true;$('#reportContent').hidden=true;$('#reportDetailBody').textContent='';$('#reportTable').textContent='';}}).observe($('#adminShell'),{attributes:true,attributeFilter:['hidden']});

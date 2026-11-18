@@ -1,0 +1,41 @@
+# Dedicated project; never shares a database, volume or port with the app.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: isolated-tests-only
+      POSTGRES_DB: tickets_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tickets -d tickets_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://tickets:isolated-tests-only@postgres:5432/tickets_test
+      ADMIN_USER: test-admin
+      ADMIN_PASSWORD: Only-for-isolated-tests-2026!
+      DEVICE_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TEST_MODE: "1"
+      TRUST_PROXY: "1"
+    volumes:
+      - ./tests:/tests:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/api/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mesa-ti:
+    build: .
+    ports:
+      - "127.0.0.1:18082:80"
+    depends_on:
+      api:
+        condition: service_healthy

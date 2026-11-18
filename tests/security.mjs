@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {base,ensureIsolated,launchBrowser,dockerExec} from './helpers.mjs';
+await ensureIsolated();
+const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+let ticket,user;
+try{
+  const login=await context.request.post(base+'/api/auth/login',{data:{username:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD}});
+  const {token}=await login.json(),headers={Authorization:`Bearer ${token}`};
+  const payload={requester:'Security regression',area:'Sistemas',subject:'Histórico adversarial',category:'Hardware',priority:'Media',description:'Datos ficticios'};
+  const rejected=await context.request.post(base+'/api/tickets',{data:{...payload,priority:'media" onmouseover="window.marker=1'}});assert.equal(rejected.status(),400);
+  const raw=Buffer.alloc(1024*1024+1,120);
+  const created=await context.request.post(base+'/api/tickets',{data:{...payload,attachments:[{name:'archivo" onmouseover="window.marker=1',type:'text/plain',data:raw.toString('base64')}]}});
+  assert.equal(created.status(),201,'El proxy acepta un adjunto mayor de 1 MB');ticket=await created.json();
+  dockerExec('api','python','-c',"import os,sys,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); c.execute('UPDATE tickets SET priority=%s WHERE id=%s',('media\" onmouseover=\"window.marker=1',int(sys.argv[1]))); c.commit()",String(ticket.id));
+  await page.goto(base,{waitUntil:'networkidle'});await page.evaluate(t=>sessionStorage.setItem('mesaTiToken',t),token);await page.getByRole('button',{name:/Acceso de TI/}).click();
+  await page.locator('#globalSearch').fill(ticket.code);await page.locator('.ticket-row').filter({hasText:ticket.code}).waitFor();
+  const priority=page.locator('.ticket-row').filter({hasText:ticket.code}).locator('strong.priority');assert.equal(await priority.getAttribute('onmouseover'),null);await priority.hover();
+  await page.locator('.ticket-row').filter({hasText:ticket.code}).click();await page.locator('#detailModal').waitFor({state:'visible'});
+  const attachment=page.locator('#attachmentList [data-attachment]');assert.equal(await attachment.getAttribute('onmouseover'),null);await attachment.hover();assert.equal(await page.evaluate(()=>window.marker),undefined);
+  assert.equal(await page.locator('#regenerateTracking').count(),0);
+  assert.equal((await context.request.get(base+'/api/tickets/'+ticket.code)).status(),200);
+  await page.locator('#detailModal [data-action=close-detail]').first().click();
+  await page.locator('#settingsNav').click();await page.locator('#addAccount').waitFor({state:'visible'});await page.locator('#addAccount').click();
+  const name='browser-tech-'+Date.now();await page.locator('#accountForm [name=username]').fill(name);await page.locator('#accountForm [name=password]').fill('Browser-password-2026!');await page.locator('#saveAccount').click();await page.locator('#accountDialog').waitFor({state:'hidden'});
+  user=(await (await context.request.get(base+'/api/admin/users',{headers})).json()).find(row=>row.username===name);assert.ok(user);
+  await page.getByRole('button',{name:'Cerrar sesión',exact:true}).click();
+  await page.waitForFunction(()=>!sessionStorage.getItem('mesaTiToken'));
+  await page.waitForTimeout(100);
+  assert.equal((await context.request.get(base+'/api/tickets',{headers})).status(),401,'Salida revoca el token');
+  await page.getByRole('button',{name:/Acceso de TI/}).click();await page.locator('#loginForm [name=username]').fill(name);await page.locator('#loginForm [name=password]').fill('Browser-password-2026!');await page.locator('#loginForm button[type=submit]').click();
+  await page.locator('#adminShell').waitFor({state:'visible'});assert.equal(await page.locator('.sidebar-user > div > strong').textContent(),name);
+  await page.locator('#settingsNav').click();await page.locator('#settingsContent').waitFor({state:'visible'});assert.equal(await page.locator('#accountsAdmin').isVisible(),false);
+  await page.locator('#changeMyPassword').click();await page.locator('#accountForm [name=current_password]').fill('Browser-password-2026!');await page.locator('#accountForm [name=password]').fill('Changed-browser-password-2026!');await page.locator('#saveAccount').click();await page.locator('#publicPortal').waitFor({state:'visible'});
+  const old=await context.request.post(base+'/api/auth/login',{data:{username:name,password:'Browser-password-2026!'}});assert.equal(old.status(),401);
+  const valid=await context.request.post(base+'/api/auth/login',{data:{username:name,password:'Changed-browser-password-2026!'}});assert.equal(valid.status(),200);
+  assert.deepEqual(errors,[]);console.log('Seguridad en navegador: XSS histórico, adjuntos, consulta por folio, cuentas individuales, permisos, contraseña y revocación: OK');
+}finally{
+  await browser.close();
+  if(ticket)dockerExec('api','python','-c',"import os,sys,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); ids=[int(sys.argv[1])]; [c.execute('DELETE FROM '+t+' WHERE ticket_id=ANY(%s)',(ids,)) for t in ['ticket_events','comments','attachments']]; c.execute('DELETE FROM tickets WHERE id=ANY(%s)',(ids,)); c.commit()",String(ticket.id));
+  if(user)dockerExec('api','python','-c',"import os,sys,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); c.execute('DELETE FROM ti_users WHERE id=%s AND NOT is_admin',(int(sys.argv[1]),)); c.commit()",String(user.id));
+}

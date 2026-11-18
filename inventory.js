@@ -7,11 +7,11 @@
   icons.tablet = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/></svg>';
   icons.phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 5h4M11 18h2"/></svg>';
   const kinds = {desktop:'PC de escritorio', laptop:'Laptop', printer:'Impresora', tablet:'Tablet', phone:'Celular'};
-  const floors={'':'Piso sin asignar',ground:'Planta baja',upper:'Planta alta'};
+  let floors={'':'Piso sin asignar',ground:'Planta baja',upper:'Planta alta'},planConfig=null,mapFloors={};
   // Office interiors on the source SVG (viewBox 0 0 792 612), excluding docks and stairs.
-  const officeZones=[{left:145,right:229,top:388,bottom:446},{left:379,right:468,top:388,bottom:446},{left:609,right:695,top:388,bottom:446}];
-  const inOffices=device=>device.x!=null && device.y!=null && officeZones.some(zone=>device.x*7.92>=zone.left && device.x*7.92<=zone.right && device.y*6.12>=zone.top && device.y*6.12<=zone.bottom);
-  const floorLabel=device=>inOffices(device)?floors[device.floor || '']:device.x==null?'Sin ubicación':'Área de planta · sin división por piso';
+  const deviceZone=device=>mesaPlan.zoneAt(planConfig?.zones||[],device);
+  const inOffices=device=>!!deviceZone(device);
+  const floorLabel=device=>{const zone=deviceZone(device);return zone?zone.name+' · '+(zone.floors.find(f=>f.id===device.floor)?.name||'Piso sin asignar'):device.x==null?'Sin ubicación':'Área de planta · sin división por piso'};
   const esc = value => safe(String(value ?? '')).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const page = document.createElement('section');
   page.id = 'inventoryPage'; page.className = 'page'; page.hidden = true;
@@ -23,7 +23,7 @@
       <div id="invPlaceMessage" class="inv-place-message" hidden><span></span><button id="invPlaceCancel" class="secondary-button">Cancelar ubicación</button></div>
       <p id="invLoadStatus" class="inv-empty" role="status" hidden></p>
       <div id="invList" class="inv-table-wrap"></div>
-      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><label class="inv-floor-filter">Piso de oficinas<select id="invMapFloor" aria-label="Piso de las oficinas" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><span class="inv-muted">Bodegas Ramos · Plano V.06</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span><span class="tablet">${icons.tablet} Tablet</span></div><p class="inv-muted">El piso solo cambia los equipos dentro de las tres oficinas. Las demas areas permanecen visibles. Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
+      <div id="invMap" class="inv-map-layout" hidden><div class="inv-map-main"><div class="inv-map-controls"><label class="inv-zone-filter">Zona<select id="invMapZone" aria-label="Zona del plano" data-glide-skip></select></label><label class="inv-floor-filter">Piso<select id="invMapFloor" aria-label="Piso de la zona" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><span class="inv-muted" id="invPlanName">Plano de planta</span><button id="invZoomOut" class="secondary-button" aria-label="Alejar plano">−</button><output id="invZoomLabel">100%</output><button id="invZoomIn" class="secondary-button" aria-label="Acercar plano">＋</button><button id="invZoomReset" class="secondary-button">Restablecer</button></div><div class="inv-plan-viewport"><div class="inv-plan" id="invPlan"><img src="Bodegas_Ramos_V06.svg" alt="Plano de la empresa Bodegas Ramos" draggable="false"><div id="invMarkers"></div></div></div><div class="inv-legend"><span class="desktop">${icons.desktop} PC de escritorio</span><span class="laptop">${icons.laptop} Laptop</span><span class="printer">${icons.printer} Impresora</span><span class="tablet">${icons.tablet} Tablet</span></div><p class="inv-muted">Cada zona conserva su propio piso seleccionado. Los equipos fuera de las zonas permanecen visibles. Selecciona un marcador para abrir la ficha. Usa el zoom y desplázate por el plano para ver más detalle.</p></div><aside class="inv-map-side"><h3>Sin ubicación en el plano</h3><p class="inv-muted">Selecciona un dispositivo y haz clic en su ubicación.</p><div id="invUnplaced"></div></aside></div>
     </section>`;
   document.querySelector('#adminShell .main-content').append(page);
   const dialog = document.createElement('dialog');
@@ -48,7 +48,7 @@
       </div></fieldset>
       <label>Último mantenimiento<input name="last_maintenance" type="date"></label>
       <label class="inv-wide">Notas<textarea name="notes" rows="3" maxlength="4000" placeholder="Especificaciones, observaciones o detalles del mantenimiento"></textarea></label>
-      <div id="invLocationFields" class="inv-wide"><strong>Ubicación en el plano</strong><div class="inv-position-grid"><label>Piso (solo oficinas)<select name="floor" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><label>Oficina (opcional)<input name="office" maxlength="200" placeholder="Ej. Contabilidad"></label></div><input name="x" type="hidden"><input name="y" type="hidden"><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
+      <div id="invLocationFields" class="inv-wide"><strong>Ubicación en el plano</strong><div class="inv-position-grid"><label>Piso de la zona<select name="floor" data-glide-skip><option value="">Piso sin asignar</option><option value="ground">Planta baja</option><option value="upper">Planta alta</option></select></label><label>Oficina (opcional)<input name="office" maxlength="200" placeholder="Ej. Contabilidad"></label></div><input name="x" type="hidden"><input name="y" type="hidden"><div class="inv-position"><span id="invPositionLabel"></span><button type="button" id="invChoosePosition" class="secondary-button">Colocar en el plano</button><button type="button" id="invClearPosition" class="text-button">Quitar ubicación</button></div></div>
     </div><p id="invFormError" class="inv-error" role="alert" hidden></p><footer><button type="button" id="invDelete" class="danger-button" hidden>Eliminar dispositivo</button><button type="button" id="invCancel" class="secondary-button">Cancelar</button><button type="submit" class="primary-button" id="invSave">Guardar dispositivo</button></footer></form>`;
   document.body.append(dialog);
   const $ = selector => document.querySelector(selector);
@@ -107,8 +107,22 @@
     $('#invUnplaced').innerHTML = unplaced.map(d=>`<button class="inv-device-link" data-place="${d.id}">${esc(d.name)}<small class="inv-muted"> · ${esc(d.area)}</small></button>`).join('') || '<p class="inv-muted">No hay dispositivos pendientes en esta selección.</p>';
     setView(view);
   }
-  const mapRows=()=>filtered().filter(d=>!inOffices(d) || (d.floor || '')===$('#invMapFloor').value);
-  $('#invMapFloor').addEventListener('change',render);
+  const mapRows=()=>filtered().filter(d=>{const zone=deviceZone(d);return !zone||(d.floor||'')===(mapFloors[zone.id]||'')});
+  function setFloorOptions(select,zone,value=''){
+    select.innerHTML='<option value="">Piso sin asignar</option>'+(zone?.floors||[]).map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');select.value=zone?.floors.some(f=>f.id===value)?value:'';select.disabled=!zone;
+  }
+  function mapZoneOptions(){const zone=planConfig?.zones.find(z=>z.id===$('#invMapZone').value);setFloorOptions($('#invMapFloor'),zone,mapFloors[zone?.id]||'')}
+  $('#invMapZone').addEventListener('change',()=>{mapZoneOptions();render()});
+  function selectMapDevice(device){const zone=deviceZone(device);if(zone){$('#invMapZone').value=zone.id;mapFloors[zone.id]=device.floor||'';mapZoneOptions()}}
+  $('#invMapFloor').addEventListener('change',()=>{mapFloors[$('#invMapZone').value]=$('#invMapFloor').value;render()});
+  async function loadPlan(){
+    const next=await mesaPlan.load();mesaPlan.release(planConfig);planConfig=next;floors={'':'Piso sin asignar',...Object.fromEntries(next.zones.flatMap(z=>z.floors.map(f=>[f.id,f.name])))};
+    $('#invPlan img').src=next.src;$('#invPlan img').alt='Plano de la planta';$('#invPlanName').textContent=next.filename;
+    const zone=$('#invMapZone').value;$('#invMapZone').innerHTML=next.zones.map(z=>`<option value="${z.id}">${esc(z.name)}</option>`).join('')||'<option value="">Sin zonas con pisos</option>';
+    if(next.zones.some(z=>z.id===zone))$('#invMapZone').value=zone;
+    for(const z of next.zones)if(!z.floors.some(f=>f.id===mapFloors[z.id]))mapFloors[z.id]='';
+    mapZoneOptions();
+  }
   function renderMarkers() {
     $('#invMarkers').innerHTML = mapRows().filter(d=>d.kind!=='phone' && d.x!==null).map(d=>`<button class="inv-marker ${d.kind}" data-device="${d.id}" style="left:${d.x}%;top:${d.y}%" title="${esc(d.name)} · ${esc(d.area)}" aria-label="${esc(d.name)}, ${kinds[d.kind]}, ${esc(d.area)}, ${esc(d.owner)}">${icons[d.kind]}</button>`).join('');
     if (placing && field('x').value !== '' && field('y').value !== '') $('#invMarkers').insertAdjacentHTML('beforeend',`<span class="inv-marker preview" style="left:${Number(field('x').value)}%;top:${Number(field('y').value)}%">${icons[field('kind').value]}</span>`);
@@ -116,20 +130,20 @@
   function setView(next) {view = next; $('#invList').hidden = view !== 'list' || !loaded; $('#invMap').hidden = view !== 'map'; page.querySelectorAll('[data-inv-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.invView===view)));}
   async function load() {
     loaded = false; $('#invLoadStatus').hidden = false; $('#invLoadStatus').textContent = 'Cargando inventario…'; $('#invList').hidden = true;
-    try {devices = await api('/api/devices'); loaded = true; $('#invLoadStatus').hidden = true; render();}
+    try {await loadPlan();devices = await api('/api/devices'); loaded = true; $('#invLoadStatus').hidden = true; render();}
     catch (error) {devices = []; render(); $('#invLoadStatus').hidden = false; $('#invLoadStatus').textContent = error.message; if(error.message.includes('Sesión')) {clear();showPublic();} }
   }
   function showInventory() {setAdminView('inventory'); window.scrollTo(0,0); load();}
   $('#inventoryNav').addEventListener('click',e=>{e.preventDefault();showInventory();});
   document.querySelectorAll('#tickets-nav .nav-item').forEach(link=>link.addEventListener('click',()=>{document.querySelectorAll('#tickets-nav .nav-item').forEach(item=>{if(item.classList.contains('active'))item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');});}));
-  document.addEventListener('mesa:view',e=>{if(e.detail!=='inventory'){$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();placing=false;selected=null;revealRequest++;form.reset();dialog.close();$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';}});
-  function clear() {$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();revealRequest++; dialog.close(); form.reset(); devices=[]; selected=null; placing=false; loaded=false; page.hidden=true; $('#dashboard').hidden=false; $('#globalSearch').closest('label').hidden=false; $('#invMarkers').innerHTML=''; $('#invList').innerHTML=''; $('#invUnplaced').innerHTML='';}
+  document.addEventListener('mesa:view',e=>{if(e.detail!=='inventory'){$('#invMapZone').disabled=false;$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();placing=false;selected=null;revealRequest++;form.reset();dialog.close();$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';}});
+  function clear() {mesaPlan.release(planConfig);planConfig=null;mapFloors={};$('#invMapZone').disabled=false;$('#invMapFloor').disabled=false;summaryRequest++;$('#invDeviceSummary').replaceChildren();revealRequest++; dialog.close(); form.reset(); devices=[]; selected=null; placing=false; loaded=false; page.hidden=true; $('#dashboard').hidden=false; $('#globalSearch').closest('label').hidden=false; $('#invMarkers').innerHTML=''; $('#invList').innerHTML=''; $('#invUnplaced').innerHTML='';}
   new MutationObserver(()=>{if($('#adminShell').hidden) clear();}).observe($('#adminShell'),{attributes:true,attributeFilter:['hidden']});
   function formLocation() {return {x:field('x').value===''?null:Number(field('x').value),y:field('y').value===''?null:Number(field('y').value)};}
   function positionLabel() {
-    const location=formLocation(),office=inOffices(location);
-    field('floor').disabled=!office;
-    $('#invPositionLabel').textContent=location.x==null?'Coloca el dispositivo en el plano. El piso se habilita dentro de las oficinas.':office?'Ubicado en oficinas':'Ubicado en planta. No aplica piso.';
+    const location=formLocation(),zone=deviceZone(location);
+    setFloorOptions(field('floor'),zone,field('floor').value);
+    $('#invPositionLabel').textContent=location.x==null?'Coloca el dispositivo en el plano. El piso se habilita dentro de una zona configurada.':zone?'Ubicado en '+zone.name:'Ubicado en planta. No aplica piso.';
   }
   function openDevice(device=null) {
     historyButton.hidden=!device;
@@ -137,6 +151,7 @@
     field('last_maintenance').readOnly=!!device?.has_maintenance;
     field('last_maintenance').title=device?.has_maintenance?'Esta fecha se actualiza desde la agenda de mantenimiento.':'';
     for(const name of ['name','kind','area','owner','username','serial','model','notes','mac_address','ip_address','processor','ram','floor','office','last_maintenance','x','y']) field(name).value = device?.[name] ?? (name==='kind' ? 'desktop' : '');
+    setFloorOptions(field('floor'),deviceZone(device||{}),device?.floor||'');
     updateComputerFields();
     document.dispatchEvent(new CustomEvent('mesa:device-opened',{detail:device}));
     field('password').type='password'; field('password').value=''; field('password').placeholder=device?.has_password ? 'Guardada · escribe para reemplazar' : 'Opcional';
@@ -169,8 +184,8 @@
   });
   ['x','y'].forEach(name=>field(name).addEventListener('input',positionLabel));
   $('#invClearPosition').addEventListener('click',()=>{field('x').value='';field('y').value='';positionLabel();});
-  function startPlacement() {if(field('kind').value==='phone')return;if(inOffices(formLocation()))$('#invMapFloor').value=field('floor').value;$('#invMapFloor').disabled=true;placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');render();$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
-  function stopPlacement() {placing=false;$('#invMapFloor').disabled=false;$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';renderMarkers();dialog.showModal();positionLabel();$('#invChoosePosition').focus();}
+  function startPlacement() {if(field('kind').value==='phone')return;selectMapDevice({...formLocation(),floor:field('floor').value});$('#invMapZone').disabled=true;$('#invMapFloor').disabled=true;placing=true;revealRequest++;field('password').type='password';dialog.close();setView('map');render();$('#invPlaceMessage').hidden=false;$('#invPlaceMessage span').textContent=`Haz clic en el plano para ubicar ${field('name').value || 'el nuevo dispositivo'}. Se guardará al confirmar la ficha.`;renderMarkers();$('#invPlan').style.cursor='crosshair';$('#invPlaceCancel').focus();}
+  function stopPlacement() {placing=false;$('#invMapZone').disabled=false;$('#invMapFloor').disabled=false;$('#invPlaceMessage').hidden=true;$('#invPlan').style.cursor='';renderMarkers();dialog.showModal();positionLabel();$('#invChoosePosition').focus();}
   $('#invChoosePosition').addEventListener('click',startPlacement);
   $('#invPlaceCancel').addEventListener('click',stopPlacement);
   document.addEventListener('keydown',e=>{if(e.key==='Escape' && placing)stopPlacement();});
@@ -180,7 +195,7 @@
     field('x').value=(Math.min(100,Math.max(0,(e.clientX-rect.left)/rect.width*100))).toFixed(2);
     field('y').value=(Math.min(100,Math.max(0,(e.clientY-rect.top)/rect.height*100))).toFixed(2);
     if(!inOffices(formLocation()))field('floor').value='';
-    else if(!field('floor').value)field('floor').value=$('#invMapFloor').value;
+    else {const zone=deviceZone(formLocation());setFloorOptions(field('floor'),zone,mapFloors[zone.id]||'');}
     stopPlacement();
   });
   page.addEventListener('click',e=>{
@@ -188,7 +203,7 @@
     const target=e.target.closest('[data-device],[data-place],[data-locate]');if(!target || placing)return;
     const device=devices.find(d=>d.id===Number(target.dataset.device || target.dataset.place || target.dataset.locate));if(!device)return;
     if(target.dataset.place) {openDevice(device);setEditing(true);startPlacement();}
-    else if(target.dataset.locate) {$('#invMapFloor').value=device.floor || '';setView('map');render();const marker=page.querySelector(`.inv-marker[data-device="${device.id}"]`);marker?.scrollIntoView({block:'center',inline:'center'});marker?.focus();}
+    else if(target.dataset.locate) {selectMapDevice(device);setView('map');render();const marker=page.querySelector(`.inv-marker[data-device="${device.id}"]`);marker?.scrollIntoView({block:'center',inline:'center'});marker?.focus();}
     else openDevice(device);
   });
   form.addEventListener('submit',async e=>{
@@ -214,6 +229,7 @@
   });
   page.querySelectorAll('[data-inv-view]').forEach(b=>b.addEventListener('click',()=>{if(!placing)setView(b.dataset.invView);}));
   ['invSearch','invKind','invArea'].forEach(id=>$('#'+id).addEventListener(id==='invSearch'?'input':'change',render));
+  document.addEventListener('mesa:plan-updated',()=>{if(!page.hidden)load();});
   function changeZoom(value) {zoom=Math.max(1,Math.min(6,value));$('#invPlan').style.width=`${zoom*100}%`;$('#invZoomLabel').value=`${Math.round(zoom*100)}%`;$('#invZoomOut').disabled=zoom===1;$('#invZoomIn').disabled=zoom===6;}
   $('#invZoomIn').addEventListener('click',()=>changeZoom(zoom+.5));$('#invZoomOut').addEventListener('click',()=>changeZoom(zoom-.5));$('#invZoomReset').addEventListener('click',()=>changeZoom(1));changeZoom(1);
 })();

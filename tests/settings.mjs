@@ -1,3 +1,5 @@
+import {ensureIsolated,launchBrowser} from './helpers.mjs';
+await ensureIsolated();
 import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
@@ -5,12 +7,12 @@ import {writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-const base=process.env.TEST_URL||'http://127.0.0.1:8082';
-const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+const base=process.env.TEST_URL||'http://127.0.0.1:18082';
+const browser=await launchBrowser();
 const context=await browser.newContext({viewport:{width:1440,height:1050},acceptDownloads:true}),page=await context.newPage();
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const login=await context.request.post(base+'/api/auth/login',{data:{username:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD}});
-assert.equal(login.status(),200);const {token}=await login.json(),headers={Authorization:`Bearer ${token}`};
+assert.equal(login.status(),200);let {token}=await login.json(),headers={Authorization:`Bearer ${token}`};
 const req=(method,url,data)=>context.request.fetch(base+url,{method,headers,data});
 const original=await (await req('GET','/api/admin/config')).json();
 const prefix=`E2E-SETTINGS-${Date.now()}`,catalogIds=[],ticketIds=[],deviceIds=[];
@@ -39,15 +41,16 @@ try {
   for(const [key,value] of Object.entries(support))await page.locator(`#supportForm [name=${key}]`).fill(value);
   changedSupport=true;await page.locator('#supportSave').click();await page.waitForFunction(()=>!document.querySelector('#supportSave').disabled);
   assert.deepEqual((await (await context.request.get(base+'/api/config')).json()).support,support);
-  assert.equal(await page.locator('.sidebar-user > div > strong').textContent(),support.technician_name);
+  assert.equal(await page.locator('.sidebar-user > div > strong').textContent(),process.env.ADMIN_USER);
   await page.screenshot({path:path.join(os.tmpdir(),'mesa-settings-desktop.png'),fullPage:true});
   await page.locator('#adminShell [data-action=public-home]').click();
+  token=(await (await context.request.post(base+'/api/auth/login',{data:{username:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD}})).json()).token;headers.Authorization=`Bearer ${token}`;
   await page.locator(`.service-card[data-category="${prefix}-category"]`).click();
   const form=page.locator('#ticketForm');await form.locator('[name=requester]').fill(prefix);await form.locator('[name=area]').selectOption(`${prefix}-area`);await form.locator('[name=subject]').fill('Ticket con catálogos editables');await form.locator('[name=description]').fill('Debe conservar las opciones originales en el historial');
   assert.equal(await form.locator('[name=category]').inputValue(),`${prefix}-category`);
   const responsePromise=page.waitForResponse(r=>r.url()===base+'/api/tickets' && r.request().method()==='POST');await form.locator('button[type=submit]').click();const createdTicket=await responsePromise;assert.equal(createdTicket.status(),201);const ticket=await createdTicket.json();ticketIds.push(ticket.id);
   await page.locator('#receiptModal').waitFor({state:'visible'});
-  const pdf=await context.request.get(`${base}/api/tickets/${ticket.code}/receipt.pdf`);assert.equal(pdf.status(),200);const pdfBody=await pdf.body();assert.ok(pdfBody.toString('latin1').includes('9755'));assert.ok(pdfBody.toString('latin1').includes('sistemas-prueba@example.test'));
+  const pdf=await req('GET',`/api/tickets/${ticket.code}/receipt.pdf`);assert.equal(pdf.status(),200);const pdfBody=await pdf.body();assert.ok(pdfBody.toString('latin1').includes('9755'));assert.ok(pdfBody.toString('latin1').includes('sistemas-prueba@example.test'));
   await writeFile(path.join(os.tmpdir(),'mesa-settings-receipt.pdf'),pdfBody);
   const imagePromise=page.waitForEvent('download');await page.locator('#downloadImage').click();await (await imagePromise).saveAs(path.join(os.tmpdir(),'mesa-settings-receipt.jpg'));
   await page.getByRole('button',{name:'Cerrar comprobante'}).click();
@@ -63,6 +66,7 @@ try {
   assert.equal((await req('PATCH',`/api/admin/tickets/${otherTicket.code}`,{category:`${prefix}-category`})).status(),400);
   await page.locator('#inventoryNav').click();await page.locator('#invLoadStatus').waitFor({state:'hidden'});await page.locator('#invSearch').fill(prefix);await page.locator(`[data-device="${device.id}"]`).first().click();
   assert.equal(await page.locator('#invForm [name=area]').inputValue(),`${prefix}-area`);
+  await page.locator('#invEdit').click();
   await page.locator('#invForm [name=notes]').fill('Edición con área histórica desde interfaz');await page.locator('#invSave').click();await page.locator('#deviceDialog').waitFor({state:'hidden'});
   await page.locator('#settingsNav').click();await page.locator('#settingsContent').waitFor({state:'visible'});
   for(const [kind,id] of [['area',areaId],['category',categoryId]]) {
@@ -74,9 +78,9 @@ try {
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(os.tmpdir(),'mesa-settings-mobile.png'),fullPage:true});
   const longSupport={technician_name:'W'.repeat(100),site_name:'W'.repeat(80),extension:'9'.repeat(30),email:'w'.repeat(140)+'@example.test',hours:'Horario '+'W'.repeat(152)};
   assert.equal((await req('PATCH','/api/admin/config/support',longSupport)).status(),200);
-  const stressBody=await (await context.request.get(`${base}/api/tickets/${ticket.code}/receipt.pdf`)).body();const positions=[...stressBody.toString('latin1').matchAll(/70 (\d+) Td/g)].map(m=>Number(m[1]));assert.ok(Math.min(...positions)>=60,'Los datos largos caben en la página');await writeFile(path.join(os.tmpdir(),'mesa-settings-receipt-long.pdf'),stressBody);
+  const stressBody=await (await req('GET',`/api/tickets/${ticket.code}/receipt.pdf`)).body();const positions=[...stressBody.toString('latin1').matchAll(/70 (\d+) Td/g)].map(m=>Number(m[1]));assert.ok(Math.min(...positions)>=60,'Los datos largos caben en la página');await writeFile(path.join(os.tmpdir(),'mesa-settings-receipt-long.pdf'),stressBody);
   // Verify the last-active guard in an isolated temporary schema, without disabling live catalogs.
-  execFileSync('docker',['compose','exec','-T','api','python','-c',`import os,uuid,psycopg
+  execFileSync('docker',['compose','-f','compose.test.yaml','-p','mesa-ti-tests','exec','-T','api','python','-c',`import os,uuid,psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 from settings import SCHEMA,handle
@@ -100,6 +104,6 @@ finally:
 } catch(error) {await page.screenshot({path:path.join(os.tmpdir(),'mesa-settings-failure.png'),fullPage:true});console.log('Errores JS:',errors);throw error;}
 finally {
   if(changedSupport)await req('PATCH','/api/admin/config/support',original.support);
-  execFileSync('docker',['compose','exec','-T','api','python','-c',"import os,sys,json,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); tids=[r[0] for r in c.execute('SELECT id FROM tickets WHERE id=ANY(%s) AND requester=%s',(json.loads(sys.argv[1]),sys.argv[4]))]; [c.execute('DELETE FROM '+t+' WHERE ticket_id=ANY(%s)',(tids,)) for t in ['ticket_events','comments','attachments']]; c.execute('DELETE FROM tickets WHERE id=ANY(%s)',(tids,)); c.execute('DELETE FROM devices WHERE id=ANY(%s) AND name=%s',(json.loads(sys.argv[2]),sys.argv[4])); c.execute('DELETE FROM config_catalog WHERE id=ANY(%s) AND name LIKE %s',(json.loads(sys.argv[3]),sys.argv[4]+'-%')); c.commit(); c.close()",JSON.stringify(ticketIds),JSON.stringify(deviceIds),JSON.stringify(catalogIds),prefix]);
+  execFileSync('docker',['compose','-f','compose.test.yaml','-p','mesa-ti-tests','exec','-T','api','python','-c',"import os,sys,json,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); tids=[r[0] for r in c.execute('SELECT id FROM tickets WHERE id=ANY(%s) AND requester=%s',(json.loads(sys.argv[1]),sys.argv[4]))]; [c.execute('DELETE FROM '+t+' WHERE ticket_id=ANY(%s)',(tids,)) for t in ['ticket_events','comments','attachments']]; c.execute('DELETE FROM tickets WHERE id=ANY(%s)',(tids,)); c.execute('DELETE FROM devices WHERE id=ANY(%s) AND name=%s',(json.loads(sys.argv[2]),sys.argv[4])); c.execute('DELETE FROM config_catalog WHERE id=ANY(%s) AND name LIKE %s',(json.loads(sys.argv[3]),sys.argv[4]+'-%')); c.commit(); c.close()",JSON.stringify(ticketIds),JSON.stringify(deviceIds),JSON.stringify(catalogIds),prefix]);
   await browser.close();
 }

@@ -1,11 +1,13 @@
+import {ensureIsolated,launchBrowser} from './helpers.mjs';
+await ensureIsolated();
 import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-const base=process.env.TEST_URL||'http://127.0.0.1:8082';
-const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+const base=process.env.TEST_URL||'http://127.0.0.1:18082';
+const browser=await launchBrowser();
 const context=await browser.newContext({viewport:{width:1440,height:1050}}),page=await context.newPage();
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const login=await context.request.post(`${base}/api/auth/login`,{data:{username:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD}});
@@ -29,7 +31,7 @@ try {
   assert.equal((await req('POST','/api/maintenance/plan',{device_id:first,interval_months:1})).status(),200);
   agenda=await (await req('GET','/api/maintenance')).json();assert.equal(agenda.devices.find(d=>d.id===first).next_maintenance,'2026-02-28','Meses con distinta longitud');
   const created=await context.request.post(base+'/api/tickets',{data:{requester:prefix,area:'Sistemas',subject:'Falla temporal del equipo',category:'Hardware',priority:'Media',description:'Relacionar equipo sin exponer inventario público',device_name:`${prefix}-0`}});
-  assert.equal(created.status(),201);const ticket=await created.json();ticketIds.push(ticket.id);assert.equal(ticket.device_id,first);
+  assert.equal(created.status(),201);const ticket=await created.json();ticketIds.push(ticket.id);assert.equal((await (await req('GET',`/api/tickets/${ticket.code}`)).json()).device_id,first);
   assert.ok(!JSON.stringify(ticket).includes('password'));
   let history=await (await req('GET',`/api/devices/${first}/history`)).json();assert.equal(history.tickets.length,1);
   const wrong=await req('PATCH',`/api/admin/tickets/${ticket.code}`,{device_id:999999999});assert.equal(wrong.status(),400);
@@ -50,13 +52,13 @@ try {
   assert.equal(await page.locator('#ticketDeviceNames option').count(),0,'El portal público no recibe el inventario');
   await publicForm.locator('[name=requester]').fill(prefix);await publicForm.locator('[name=area]').selectOption('Sistemas');await publicForm.locator('[name=subject]').fill('Solicitud con computadora sin inventariar');await publicForm.locator('[name=device_name]').fill(`${prefix}-DESCONOCIDO`);await publicForm.locator('[name=description]').fill('Prueba de solicitud pública');
   const publicResponse=page.waitForResponse(r=>r.url()===base+'/api/tickets' && r.request().method()==='POST');
-  await publicForm.locator('button[type=submit]').click();const typed=await (await publicResponse).json();ticketIds.push(typed.id);assert.equal(typed.device_id,null);assert.equal(typed.device_name,`${prefix}-DESCONOCIDO`);
+  await publicForm.locator('button[type=submit]').click();const typed=await (await publicResponse).json();ticketIds.push(typed.id);const typedDetail=await (await req('GET',`/api/tickets/${typed.code}`)).json();assert.equal(typedDetail.device_id,null);assert.equal(typedDetail.device_name,`${prefix}-DESCONOCIDO`);
   await page.locator('#receiptModal').waitFor({state:'visible'});await page.getByRole('button',{name:'Cerrar comprobante'}).click();
   assert.equal((await req('PATCH',`/api/admin/tickets/${typed.code}`,{device_id:first})).status(),200);
   const detached=await (await req('PATCH',`/api/admin/tickets/${typed.code}`,{device_id:null})).json();assert.equal(detached.device_id,null);assert.equal(detached.device_name,'');
   await page.evaluate(t=>sessionStorage.setItem('mesaTiToken',t),token);
   await page.getByRole('button',{name:/Acceso de TI/}).click();
-  await page.locator('#globalSearch').fill(ticket.code);await page.locator('.ticket-row').first().click();
+  await page.locator('#globalSearch').fill(ticket.code);await page.locator('.ticket-row').filter({hasText:ticket.code}).click();
   await page.waitForFunction(()=>!document.querySelector('#detailForm [name=device_id]').disabled);
   await page.locator('#detailForm [name=device_id]').selectOption(String(second));await page.locator('#detailForm .primary-button').click();
   await page.waitForFunction(()=>!document.querySelector('#detailForm .primary-button').disabled);
@@ -88,6 +90,6 @@ try {
   console.log('Mantenimiento: vinculación, cambio de equipo auditado, archivo, fechas mensuales, registros históricos, programación, permisos, ficha, móvil y navegación: OK');
 } catch(error) {await page.screenshot({path:path.join(os.tmpdir(),'mesa-maintenance-failure.png'),fullPage:true});console.log('Errores JS:',errors);throw error;}
 finally {
-  execFileSync('docker',['compose','exec','-T','api','python','-c',"import os,sys,json,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); tids=[r[0] for r in c.execute('SELECT id FROM tickets WHERE id=ANY(%s) AND requester=%s',(json.loads(sys.argv[1]),sys.argv[3]))]; [c.execute('DELETE FROM '+t+' WHERE ticket_id=ANY(%s)',(tids,)) for t in ['ticket_events','comments','attachments']]; c.execute('DELETE FROM tickets WHERE id=ANY(%s)',(tids,)); dids=[r[0] for r in c.execute('SELECT id FROM devices WHERE id=ANY(%s) AND name LIKE %s',(json.loads(sys.argv[2]),sys.argv[3]+'-%'))]; c.execute('DELETE FROM device_maintenance WHERE device_id=ANY(%s)',(dids,)); c.execute('DELETE FROM devices WHERE id=ANY(%s)',(dids,)); c.commit(); c.close()",JSON.stringify(ticketIds),JSON.stringify(deviceIds),prefix]);
+  execFileSync('docker',['compose','-f','compose.test.yaml','-p','mesa-ti-tests','exec','-T','api','python','-c',"import os,sys,json,psycopg; c=psycopg.connect(os.environ['DATABASE_URL']); tids=[r[0] for r in c.execute('SELECT id FROM tickets WHERE id=ANY(%s) AND requester=%s',(json.loads(sys.argv[1]),sys.argv[3]))]; [c.execute('DELETE FROM '+t+' WHERE ticket_id=ANY(%s)',(tids,)) for t in ['ticket_events','comments','attachments']]; c.execute('DELETE FROM tickets WHERE id=ANY(%s)',(tids,)); dids=[r[0] for r in c.execute('SELECT id FROM devices WHERE id=ANY(%s) AND name LIKE %s',(json.loads(sys.argv[2]),sys.argv[3]+'-%'))]; c.execute('DELETE FROM device_maintenance WHERE device_id=ANY(%s)',(dids,)); c.execute('DELETE FROM devices WHERE id=ANY(%s)',(dids,)); c.commit(); c.close()",JSON.stringify(ticketIds),JSON.stringify(deviceIds),prefix]);
   await browser.close();
 }

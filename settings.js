@@ -26,7 +26,7 @@
     select.value=names.includes(old)||retained?old:defaultCategory?(names.includes('Hardware')?'Hardware':names[0]||''):'';
   }
   function ticketFilters() {
-    const names=[...new Set([...(window.mesaConfig?.categories||[]).map(c=>c.name),...tickets.map(t=>t.category)])].sort((a,b)=>a.localeCompare(b));
+    const names=[...new Set([...(window.mesaConfig?.categories||[]).map(c=>c.name),...ticketCategories])].sort((a,b)=>a.localeCompare(b));
     $('#categoryFilter').innerHTML='<option value="Todas">Todas las categorías</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
     $('#categoryFilter').value=state.category;
   }
@@ -44,9 +44,7 @@
     $('.public-footer span:first-child').textContent=`Mesa TI · ${s.site_name}`;
     $('.public-footer span:nth-child(2)').textContent=contact||s.hours;
     $('.sidebar-help p').textContent=contact||s.hours;
-    $('.sidebar-user > div > strong').textContent=s.technician_name;
-    $('.sidebar-user .avatar').textContent=s.technician_name.split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-    $('#dashboard .page-heading h1').textContent=`Hola, ${s.technician_name.split(/\s+/)[0]}`;
+
     $('#dashboard .page-heading p').textContent=`Aquí tienes el panorama de soporte de ${s.site_name}.`;
     fillSelect(areaSelect,config.areas,undefined,{placeholder:'Selecciona tu área'});
     fillSelect(categorySelect,config.categories,undefined,{defaultCategory:true,placeholder:'Selecciona una categoría'});

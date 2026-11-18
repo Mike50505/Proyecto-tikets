@@ -64,6 +64,8 @@ def text(value, label, limit, required=True):
     return value
 
 def handle(handler,path,method,db,data=None):
+    from plant_plan import handle as plan_handle
+    if plan_handle(handler,path,method,db,data):return True
     if path!='/api/config' and not (path=='/api/admin/config' or path.startswith('/api/admin/config/')):return False
     if path=='/api/config':
         if method!='GET':handler.json(405,{'error':'Método no permitido'});return True

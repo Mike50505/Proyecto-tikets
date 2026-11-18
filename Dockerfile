@@ -1,4 +1,4 @@
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/index.html
@@ -12,6 +12,9 @@ COPY inventory.js inventory.css Bodegas_Ramos_V06.svg /usr/share/nginx/html/
 COPY reports.js reports.css /usr/share/nginx/html/
 COPY maintenance.js maintenance.css /usr/share/nginx/html/
 COPY settings.js settings.css /usr/share/nginx/html/
+COPY plant-plan.js plan-editor.js plan-editor.css /usr/share/nginx/html/
+COPY accounts.js /usr/share/nginx/html/accounts.js
+COPY pending.js pending.css /usr/share/nginx/html/
 COPY mesa /usr/share/nginx/html/mesa
 COPY mesa-adapter.css /usr/share/nginx/html/mesa-adapter.css
 COPY logo-mesa.svg /usr/share/nginx/html/logo-mesa.svg

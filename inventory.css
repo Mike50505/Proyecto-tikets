@@ -29,8 +29,8 @@ html body.mesa-tickets #inventoryPage .inv-filters .glide-select {width:185px;fl
 .inv-map-controls {display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .inv-map-controls span {margin-right:auto}
 .inv-plan-viewport {overflow:auto;max-height:70vh;border:1px solid var(--mesa-line,#ddd);border-radius:12px;background:#fff}
-.inv-plan {position:relative;width:100%;aspect-ratio:792/612;background:#fff}
-.inv-plan img {display:block;width:100%;height:100%;user-select:none;pointer-events:none}
+.inv-plan {position:relative;width:100%;background:#fff}
+.inv-plan img {display:block;width:100%;height:auto;user-select:none;pointer-events:none}
 .inv-marker {position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border:2px solid white;border-radius:10px;background:#075fc7;color:white;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 8px #0005;z-index:1;padding:5px}
 .inv-marker.laptop {background:#7044b6;border-radius:50%}
 .inv-marker svg {width:20px;height:20px;pointer-events:none}

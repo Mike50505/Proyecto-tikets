@@ -1,6 +1,8 @@
 # Mesa TI
 
-Interfaz inicial del sistema de tickets, servida con Nginx dentro de Docker.
+Sistema de soporte interno con portal público, tickets, inventario, mantenimiento y reportes. Frontend JavaScript, API Flask/Gunicorn y PostgreSQL 17, servidos por Nginx en Docker.
+
+Las correcciones de seguridad y operación se documentan en [seguridad y operación](docs/seguridad-operacion.md).
 
 ## Iniciar
 
@@ -19,19 +21,7 @@ En la computadora servidor se abre en:
 http://localhost:8080
 ```
 
-En otros equipos de la misma red se abre usando la IP del servidor:
-
-```text
-http://IP-DEL-SERVIDOR:8080
-```
-
-Para conocer la IP del servidor:
-
-```powershell
-ipconfig
-```
-
-Busca la dirección IPv4 del adaptador de red que esté en uso.
+El puerto se enlaza sólo a loopback de forma predeterminada. Para acceso desde otros equipos, usa un proxy HTTPS autorizado con límites de solicitudes; evita publicar HTTP con credenciales administrativas. La instalación local de esta computadora usa un override en el puerto **8082**.
 
 ## Operación
 
@@ -63,21 +53,33 @@ docker compose up -d --build
 
 El sistema incluye una API en Python y PostgreSQL en el volumen Docker `proyectotikets_postgres_data`. Los tickets y archivos adjuntos son comunes para todos los equipos de la red y se conservan al reiniciar o reconstruir los contenedores. Los registros de la base SQLite inicial se migran automáticamente la primera vez.
 
-El portal público permite crear y consultar tickets sin cuenta. El panel de TI requiere autenticación y permite cambiar estado, prioridad y responsable, agregar comentarios y eliminar órdenes.
+El portal público permite crear tickets sin cuenta y consultar su estado con el folio, nombre completo o número de nómina. Quien conozca estos datos puede consultar el detalle público; el comprobante PDF se descarga con el folio. Los comentarios internos y la descarga de adjuntos requieren sesión de TI. El panel de TI requiere una cuenta individual de TI y permite cambiar estado, prioridad y responsable, agregar comentarios y eliminar órdenes.
+
+En **Pendientes**, el equipo de TI comparte un pizarrón independiente de los tickets con estados Por hacer, En curso y Hecho. Cada tarea guarda fecha, responsable, notas de seguimiento y autor del último cambio en PostgreSQL. La vista del día incluye tareas anteriores sin terminar; también se puede consultar otra fecha o ver todas. Marcar la casilla completa la tarea y desmarcarla la reabre. Archivar retira la tarea del pizarrón sin borrar su registro. Las ediciones simultáneas se detectan para evitar sobrescribir cambios ajenos. Las fechas del día usan el horario de Ciudad de México. Prueba específica: `node tests/run.mjs pending` (base aislada).
 
 > `docker compose down` conserva los datos. No uses `docker compose down -v` salvo que quieras borrar permanentemente la base.
 
 ## Inventario de dispositivos
 
+### Planos y pisos por instalación
+
+Cada planta despliega su propia aplicación y base de datos. En **Configuración → Plano, zonas y pisos**, el personal de TI puede cargar un plano PNG, JPG o SVG de hasta 10 MB. Para PDF, primero exporta una imagen. El logo permanece igual.
+
+Pulsa **Añadir zona con pisos** y arrastra sobre el plano para dibujar un rectángulo. Arrastra su interior para moverlo o sus esquinas para cambiar su tamaño. También puedes usar las flechas con el rectángulo o una esquina enfocados (Mayús acelera el ajuste). Nombra la zona y agrega o renombra sus pisos. Las zonas no pueden solaparse. Pulsa **Guardar plano y zonas** para publicar los cambios; **Descartar cambios y recargar** vuelve a la versión guardada.
+
+En **Dispositivos → Plano**, selecciona una zona y un piso. Cada zona conserva su propia selección; los equipos fuera de las zonas siguen visibles. En las fichas, el piso solo se habilita cuando la ubicación queda dentro de una zona configurada. Los celulares siguen fuera del plano.
+
+La actualización conserva como zonas iniciales las tres oficinas de Ramos y sus pisos actuales. Quitar una zona o un piso conserva los dispositivos, pero deja sin piso asignado los afectados. Al reemplazar el plano se exige confirmar que se retiren las ubicaciones anteriores: no se borran dispositivos ni mantenimientos. El plano se guarda en PostgreSQL y queda incluido en sus respaldos. No requiere copiar archivos manualmente al servidor.
+
 Entra al panel de TI y abre **Dispositivos**. Puedes agregar PCs de escritorio y laptops, buscar por nombre, responsable o serie y filtrar por tipo y área. Cada ficha incluye responsable, usuario, contraseña opcional, modelo, serie, notas y fecha del último mantenimiento.
 
-La vista **Plano** utiliza `Bodegas_Ramos_V06.svg`. Desde la ficha, pulsa **Colocar en el plano**, usa el zoom y haz clic en la ubicación. Confirma con **Guardar dispositivo**. Las coordenadas se guardan como porcentajes para conservar su posición con cualquier tamaño de pantalla. También puedes editar las coordenadas con teclado o quitar una ubicación. Los marcadores abren la ficha y distinguen escritorio y laptop por forma, icono y color.
+La vista **Plano** utiliza el archivo configurado para la planta; inicialmente conserva `Bodegas_Ramos_V06.svg`. Desde la ficha, pulsa **Colocar en el plano**, usa el zoom y haz clic en la ubicación. Confirma con **Guardar dispositivo**. Las ubicaciones se guardan como porcentajes para conservar su posición con cualquier tamaño de pantalla. Puedes quitar una ubicación desde la ficha. Los marcadores abren la ficha del equipo.
 
 Los dispositivos se guardan en PostgreSQL y sus rutas requieren la sesión de TI. Las contraseñas se cifran con Fernet; el listado no devuelve las contraseñas ni el contenido cifrado. Para consultarlas, usa **Mostrar** en la ficha. Al editar, dejar intacto el campo conserva la contraseña; vaciar un campo modificado la elimina.
 
-Antes de guardar contraseñas, configura `DEVICE_ENCRYPTION_KEY` en `.env`. En esta instalación ya se generó una clave independiente. En una instalación nueva puedes generar una sin dependencias con `python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"`. Copia el resultado en `.env` y reconstruye los servicios. Conserva esa clave con el respaldo de la base: cambiarla impide descifrar las contraseñas anteriores. Cambiar la contraseña de acceso de TI no afecta el cifrado del inventario.
+Antes de guardar contraseñas, configura `DEVICE_ENCRYPTION_KEY` en `.env`. En esta instalación ya se generó una clave independiente. En una instalación nueva puedes generar una sin dependencias con `python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"`. Copia el resultado en `.env` y reconstruye los servicios. Conserva esa clave con el respaldo de la base: cambiarla impide descifrar las contraseñas anteriores. Cambiar la contraseña de acceso de TI no afecta el cifrado del inventario. ADMIN_USER y ADMIN_PASSWORD sólo crean la cuenta inicial cuando no existen cuentas; después las contraseñas se administran en Configuración → Mi cuenta / Cuentas de TI.
 
-Validación del inventario: `npm run test:inventory` (app en `http://127.0.0.1:8082`; puedes cambiarla con `TEST_URL`). La prueba crea registros temporales y los elimina al terminar.
+Validación del inventario: `npm run test:inventory` (servicio de pruebas en `http://127.0.0.1:18082`). La prueba arranca una base temporal aislada y la retira al terminar.
 
 ## Reportes e historial
 
@@ -89,7 +91,7 @@ Los tickets anteriores a esta función tienen un movimiento **Registro previo**.
 
 **Exportar CSV** descarga todos los resultados filtrados, con protección ante fórmulas en textos. La ficha tiene su propia exportación del historial. **Imprimir / PDF** abre la impresión del navegador; selecciona Guardar como PDF para obtener el documento. La impresión incluye todas las páginas de la selección.
 
-Validación: `npm run test:reports`. Requiere Docker local y crea registros temporales que elimina permanentemente al terminar, incluso si se archivaron durante la prueba.
+Validación: `npm run test:reports`. Requiere Docker y Chrome locales; ejecuta todo en un proyecto y base de pruebas independientes, puerto 18082.
 
 ## Equipos relacionados y mantenimiento
 
@@ -101,7 +103,7 @@ En **Dispositivos**, abre la ficha y pulsa **Historial del equipo** para consult
 
 **Registrar** conserva fecha, tipo preventivo/correctivo, trabajo realizado, técnico y próxima revisión prevista. Actualiza el último mantenimiento y la próxima revisión. Un registro anterior al último queda en el historial y no retrocede la agenda; usa Programar si necesitas ajustar la próxima fecha. Una vez que existen trabajos registrados, la última fecha se actualiza desde la agenda, no editando la ficha del inventario. Registrar mantenimiento no cambia el estado de los tickets relacionados.
 
-Los avisos de vencimiento se muestran dentro de la agenda; no se envían correos ni notificaciones del sistema operativo. Validación: `npm run test:maintenance` (Docker local, app en puerto 8082 o `TEST_URL`). La prueba elimina únicamente sus equipos, tickets y mantenimientos temporales al terminar.
+Los avisos de vencimiento se muestran dentro de la agenda; no se envían correos ni notificaciones del sistema operativo. Validación: `npm run test:maintenance` (Docker y Chrome locales, base temporal exclusiva en el puerto 18082). La prueba elimina únicamente sus equipos, tickets y mantenimientos temporales al terminar.
 
 ## Configuración
 
@@ -111,4 +113,4 @@ Al activar esta función se importan una sola vez las áreas/categorías inicial
 
 Las nuevas solicitudes y los dispositivos nuevos deben usar opciones activas; la API también lo valida. Los registros históricos conservan el texto original al desactivar o renombrar una opción y se pueden seguir editando sin cambiarla. El filtro de tickets incluye las categorías históricas presentes en los registros. Las opciones desactivadas no reaparecen al reiniciar la app.
 
-`GET /api/config` sólo publica los datos de soporte y los catálogos activos. Las operaciones de administración requieren sesión de TI. Validación: `npm run test:settings`. La prueba crea opciones y registros temporales, modifica los datos de soporte para verificarlos, restaura los valores originales y limpia sus registros al terminar. La protección de la última opción activa se verifica en un esquema temporal aislado de los catálogos reales.
+`GET /api/config` sólo publica los datos de soporte y los catálogos activos. Las operaciones de administración requieren sesión de TI. Validación: `npm run test:settings`. La prueba crea opciones y registros temporales y modifica los datos de soporte exclusivamente en la base de pruebas aislada. La protección de la última opción activa se verifica en un esquema temporal aislado de los catálogos reales.

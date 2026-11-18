@@ -2,6 +2,7 @@
 import json
 from maintenance import device_link
 from settings import active_choice
+from ticket_queries import listing, arguments, export_csv
 
 SCHEMA = """
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
@@ -53,16 +54,24 @@ def archive(c, code, actor):
 def handle(handler, path, db, serialize):
     if path != '/api/reports/tickets' and not path.startswith('/api/reports/tickets/'): return False
     if not handler.admin(): return True
+    if path == '/api/reports/tickets/export':
+        arguments(handler.path)
+        handler.send_response(200)
+        handler.send_header('Content-Type','text/csv; charset=utf-8')
+        handler.send_header('Content-Disposition','attachment; filename="mesa-ti-tickets.csv"')
+        handler.send_header('Cache-Control','no-store')
+        handler.stream=export_csv(db,handler.path)
+        return True
     with db() as c:
         if path == '/api/reports/tickets':
-            rows=c.execute('SELECT * FROM tickets ORDER BY created_at DESC,id DESC').fetchall()
-            handler.json(200,[{k:serialize(v) for k,v in row.items()} for row in rows])
+            c.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+            handler.json(200,listing(c,handler.path,serialize))
         else:
             code=path.rsplit('/',1)[-1].upper()
             row=c.execute('SELECT * FROM tickets WHERE code=%s',(code,)).fetchone()
             if not row: handler.json(404,{'error':'Ticket no encontrado'})
             else:
-                result={k:serialize(v) for k,v in row.items()}
+                result={k:serialize(v) for k,v in row.items() if k!='tracking_hash'}
                 result['events']=[{k:serialize(v) for k,v in e.items()} for e in c.execute('SELECT id,action,actor,changes,created_at FROM ticket_events WHERE ticket_id=%s ORDER BY id',(row['id'],)).fetchall()]
                 result['comments']=[{k:serialize(v) for k,v in e.items()} for e in c.execute('SELECT author,body,created_at FROM comments WHERE ticket_id=%s ORDER BY id',(row['id'],)).fetchall()]
                 result['attachments']=[{k:serialize(v) for k,v in e.items()} for e in c.execute('SELECT id,name,mime,octet_length(data) size FROM attachments WHERE ticket_id=%s ORDER BY id',(row['id'],)).fetchall()]
